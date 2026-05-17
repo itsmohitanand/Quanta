@@ -29,65 +29,55 @@ def build_system_prompt(user_id: int) -> str:
     db = get_db()
     today = str(date.today())
 
-    goals   = db.execute("SELECT title, description FROM goals WHERE user_id = ? ORDER BY priority DESC", (user_id,)).fetchall()
-    notes   = db.execute("SELECT content FROM notes WHERE user_id = ? ORDER BY created_at DESC LIMIT 15", (user_id,)).fetchall()
-    habits  = db.execute("SELECT name FROM habits WHERE user_id = ?", (user_id,)).fetchall()
-    logs    = db.execute("SELECT habit_name, done FROM habit_logs WHERE user_id = ? AND date = ?", (user_id, today)).fetchall()
-    tasks   = db.execute(
-        "SELECT title, deadline FROM tasks WHERE user_id = ? AND done = 0 ORDER BY deadline ASC NULLS LAST LIMIT 10",
+    commitments = db.execute(
+        "SELECT title FROM tasks WHERE user_id = ? AND horizon IN ('year','life') AND done = 0 ORDER BY created_at DESC LIMIT 8",
+        (user_id,),
+    ).fetchall()
+    actions = db.execute(
+        "SELECT title, deadline FROM tasks WHERE user_id = ? AND horizon NOT IN ('year','life') AND done = 0 "
+        "ORDER BY deadline ASC NULLS LAST LIMIT 10",
+        (user_id,),
+    ).fetchall()
+    notes = db.execute(
+        "SELECT content FROM notes WHERE user_id = ? ORDER BY created_at DESC LIMIT 15",
         (user_id,),
     ).fetchall()
     db.close()
 
-    log_map = {r["habit_name"]: bool(r["done"]) for r in logs}
-
-    # Try to read today's journal
     notes_dir = get_notes_dir_for_user(user_id)
     journal_today = ""
-    journal_path = notes_dir / "daily" / f"{today}.typ"
-    if journal_path.exists():
-        try:
-            journal_today = journal_path.read_text().strip()
-        except Exception:
-            pass
+    for folder in ("daily",):
+        p = notes_dir / folder / f"{today}.typ"
+        if p.exists():
+            try: journal_today = p.read_text().strip()
+            except Exception: pass
 
     parts = [
         f"You are Quanta, a helpful life organiser and second brain. Today is {today}.",
         "You know this person through their journal, notes, commitments, and memory.",
         "Be friendly, conversational, and genuinely helpful. Keep responses concise unless detail is asked for.",
         "",
-        "Tools — use them when relevant, without asking permission first:",
-        "- Journal/notes mentioned → call list_journal_files or read_journal to look it up.",
-        "- Questions about current events, facts, prices → call web_search.",
-        "- 'Create a task/reminder/commitment' → call create_task (ask for deadline for short-term actions).",
+        "Tools — use them when relevant, without asking first:",
+        "- Journal/notes mentioned → call list_journal_files or read_journal.",
+        "- User wants to log something to their journal → call log_to_journal.",
+        "- Current events, facts, prices → call web_search.",
+        "- 'Create a task/reminder/commitment' → call create_task.",
         "- 'What are my tasks' → call list_tasks.",
-        "You have these tools — use them naturally, don't say you can't access things.",
         "",
-        "Task creation:",
-        "- Long-term commitments (year/life): create right away, deadline optional.",
-        "- Short-term actions: ask for deadline if not mentioned, then create.",
-        "",
-        "Tone: warm, direct, supportive. If something seems worth flagging, mention it once gently — don't lecture or repeat yourself.",
+        "Tone: warm, direct, supportive. Mention issues once — never lecture.",
         "",
     ]
 
-    if goals:
-        parts.append("## Goals")
-        for g in goals:
-            parts.append(f"- {g['title']}: {g['description']}")
+    if commitments:
+        parts.append("## Commitments")
+        for c in commitments:
+            parts.append(f"- {c['title']}")
         parts.append("")
 
-    if habits:
-        parts.append("## Today's Habits")
-        for h in habits:
-            status = "✓" if log_map.get(h["name"]) else "✗"
-            parts.append(f"- [{status}] {h['name']}")
-        parts.append("")
-
-    if tasks:
-        parts.append("## Current Tasks")
-        for t in tasks:
-            dl = f" — due {t['deadline']}" if t["deadline"] else ""
+    if actions:
+        parts.append("## Open Actions")
+        for t in actions:
+            dl = f" — due {t['deadline'][:10]}" if t["deadline"] else ""
             parts.append(f"- {t['title']}{dl}")
         parts.append("")
 
@@ -98,7 +88,7 @@ def build_system_prompt(user_id: int) -> str:
         parts.append("")
 
     if journal_today:
-        parts.append(f"## Today's Journal")
+        parts.append("## Today's Journal")
         parts.append(journal_today)
         parts.append("")
 

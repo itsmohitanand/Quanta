@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
   <title>Quanta</title>
   <link rel="manifest" href="/manifest.json" />
-  <link rel="icon" type="image/png" href="/icon-192.png" />
+  <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+  <link rel="icon" type="image/png" href="/icon-192.png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
   <!-- iOS PWA -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -47,6 +49,10 @@
       <form id="settings-form">
         <label>Theme</label>
         <div class="theme-switcher">
+          <button type="button" class="theme-btn" data-theme="light">
+            <span class="theme-preview" style="background:#FFFFFF;border-color:#6366F1;border-width:2px"></span>
+            <span>Light</span>
+          </button>
           <button type="button" class="theme-btn" data-theme="poimandres">
             <span class="theme-preview" style="background:#1B1E28;border-color:#5DE4C7"></span>
             <span>Poimandres</span>
@@ -79,6 +85,11 @@
         <p id="settings-error"></p>
         <p id="settings-success"></p>
       </form>
+      <div style="padding: 0 18px 18px; border-top: 1px solid var(--border); margin-top: 4px; padding-top: 14px;">
+        <button id="logout-modal-btn" class="btn-outline" style="width:100%; color: var(--danger); border-color: var(--danger);">
+          <i data-lucide="log-out"></i> Sign out
+        </button>
+      </div>
     </div>
   </div>
 
@@ -88,7 +99,11 @@
     <!-- Left sidebar -->
     <nav id="sidebar">
       <div class="sb-brand">
-        <img src="/icon-192.png" class="sb-logo" alt="Quanta" />
+        <svg class="sb-logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Quanta">
+          <rect x="3" y="3" width="94" height="94" rx="22" fill="#5DE4C7"/>
+          <circle cx="44" cy="43" r="20" stroke="#1B1E28" stroke-width="9.5"/>
+          <line x1="57" y1="57" x2="76" y2="76" stroke="#1B1E28" stroke-width="9.5" stroke-linecap="round"/>
+        </svg>
         <span class="sb-name">Quanta</span>
         <button id="sidebar-collapse" class="sb-collapse" title="Collapse">
           <i data-lucide="chevrons-left"></i>
@@ -296,6 +311,45 @@
   </div><!-- /app -->
 
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <!-- Mobile cheat sheet FAB + bottom sheet -->
+  <button id="cs-fab" aria-label="Typst syntax guide">
+    <i data-lucide="book-marked"></i>
+  </button>
+  <div id="cs-overlay"></div>
+  <div id="cs-sheet" role="dialog" aria-label="Typst syntax guide">
+    <div class="cs-sheet-handle"></div>
+    <div class="cs-sheet-title">Typst Syntax</div>
+    <div class="cs-group">
+      <div class="cs-label">Headings</div>
+      <div class="cs-row"><code class="cs-typst cs-h1">= </code><span>Heading 1</span></div>
+      <div class="cs-row"><code class="cs-typst cs-h2">== </code><span>Heading 2</span></div>
+      <div class="cs-row"><code class="cs-typst cs-h3">=== </code><span>Heading 3</span></div>
+    </div>
+    <div class="cs-group">
+      <div class="cs-label">Emphasis</div>
+      <div class="cs-row"><code class="cs-typst">*text*</code><span>bold</span></div>
+      <div class="cs-row"><code class="cs-typst">_text_</code><span>italic</span></div>
+    </div>
+    <div class="cs-group">
+      <div class="cs-label">Lists</div>
+      <div class="cs-row"><code class="cs-typst">- item</code><span>bullet</span></div>
+      <div class="cs-row"><code class="cs-typst">+ item</code><span>numbered</span></div>
+    </div>
+    <div class="cs-group">
+      <div class="cs-label">Inline</div>
+      <div class="cs-row"><code class="cs-typst">`code`</code><span>code</span></div>
+      <div class="cs-row"><code class="cs-typst">$x^2$</code><span>math</span></div>
+      <div class="cs-row"><code class="cs-typst">// ...</code><span>comment</span></div>
+    </div>
+    <div class="cs-group">
+      <div class="cs-label">Keys</div>
+      <div class="cs-row"><kbd>Enter</kbd><span>new line</span></div>
+      <div class="cs-row"><kbd>Tab</kbd><span>indent</span></div>
+      <div class="cs-row"><kbd>↑ ↓</kbd><span>move</span></div>
+    </div>
+    <p class="cs-tip">Plain text works too — Typst is optional.</p>
+  </div>
+
   <script src="/app.js"></script>
   <script defer src="/journal.js"></script>
 </body>

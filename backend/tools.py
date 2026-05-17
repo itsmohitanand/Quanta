@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date as DateType
+from datetime import date as DateType, datetime
 from pathlib import Path
 from .database import get_db
 
@@ -95,6 +95,25 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "log_to_journal",
+            "description": (
+                "Write an entry to the user's auto journal log. "
+                "Use this when the user says something worth logging — "
+                "a reflection, what they did, how they feel, a quick note. "
+                "The entry is timestamped and tagged with [Chat] automatically."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string", "description": "The journal entry text to log"},
+                },
+                "required": ["text"],
+            },
+        },
+    },
 ]
 
 
@@ -174,5 +193,31 @@ async def execute_tool(name: str, args: dict, user_id: int, notes_dir: Path = No
         db.commit()
         db.close()
         return {"saved": args["content"]}
+
+    if name == "log_to_journal":
+        nd = notes_dir or (Path.home() / "quanta-notes")
+        db = get_db()
+        user = db.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
+        db.close()
+        username = user["username"] if user else "user"
+        nd = nd if nd.exists() else Path.home() / "Documents" / f"quanta-{username}-default"
+
+        now      = datetime.now()
+        today    = now.strftime("%Y-%m-%d")
+        time_str = now.strftime("%H:%M")
+        path = nd / "auto" / f"{today}.typ"
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Create file with header if new
+        if not path.exists():
+            path.write_text(
+                f"= Auto Log — {today}\n\n"
+                f"#set text(font: \"New Computer Modern\", size: 11pt)\n\n"
+            )
+
+        with path.open("a") as f:
+            f.write(f"+ [{time_str} · Chat] {args['text']}\n")
+
+        return {"logged": True, "file": f"auto/{today}.typ", "time": time_str}
 
     return {"error": f"Unknown tool: {name}"}

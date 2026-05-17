@@ -73,6 +73,7 @@ function switchTab(tabName) {
   const btn = document.querySelector(`[data-tab="${tabName}"]`);
   if (btn) { btn.classList.add("active"); document.getElementById(tabName)?.classList.add("active"); }
   localStorage.setItem("lastTab", tabName);
+  setTimeout(updateFab, 50);
 }
 
 // Sidebar nav
@@ -108,6 +109,7 @@ function setJournalMode(mode) {
     b.classList.toggle("active", b.dataset.mode === mode)
   );
   localStorage.setItem("journalMode", mode);
+  updateFab();
 }
 
 document.querySelectorAll(".mt-btn").forEach(btn => {
@@ -128,11 +130,28 @@ document.getElementById("sidebar-collapse").addEventListener("click", () => {
 });
 
 document.getElementById("logout-btn").addEventListener("click", logout);
+document.getElementById("logout-modal-btn").addEventListener("click", logout);
 
 // ── Chat ──────────────────────────────────────────────────────────────────────
 
 const messagesEl = document.getElementById("messages");
 const chatInput = document.getElementById("chat-input");
+
+// Safely render message text as HTML paragraphs
+function renderMsgText(text) {
+  const safe = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return safe
+    .replace(/```([\s\S]*?)```/g, (_, code) => `<pre><code>${code.trim()}</code></pre>`)
+    .replace(/`([^`\n]+)`/g,  "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*\n]+)\*/g,   "<em>$1</em>")
+    .split(/\n\n+/)
+    .map(p => `<p>${p.replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
 
 function appendMessage(role, content, streaming = false) {
   const wrap = document.createElement("div");
@@ -142,11 +161,10 @@ function appendMessage(role, content, streaming = false) {
   el.className = `msg ${role}`;
 
   if (streaming && !content) {
-    // Show typing indicator until first token arrives
     el.classList.add("typing");
     el.innerHTML = `<div class="typing-dots"><span></span><span></span><span></span></div>`;
-  } else {
-    el.textContent = content;
+  } else if (content) {
+    el.innerHTML = role === "assistant" ? renderMsgText(content) : `<p>${escHtml(content)}</p>`;
     if (streaming) el.classList.add("streaming");
   }
 
@@ -210,12 +228,13 @@ document.getElementById("chat-send-btn").addEventListener("click", sendChat);
 document.getElementById("chat-form")?.addEventListener("submit", (e) => { e.preventDefault(); sendChat(); });
 
 const TOOL_LABELS = {
-  create_task:        { icon: "pin",         label: "Committed" },
-  list_tasks:         { icon: "list-checks", label: "Checked tasks" },
-  read_journal:       { icon: "book-open",   label: "Read journal" },
-  list_journal_files: { icon: "folder",      label: "Browsed notes" },
+  create_task:        { icon: "pin",           label: "Committed" },
+  list_tasks:         { icon: "list-checks",   label: "Checked tasks" },
+  read_journal:       { icon: "book-open",     label: "Read journal" },
+  list_journal_files: { icon: "folder",        label: "Browsed notes" },
   save_note:          { icon: "bookmark-plus", label: "Remembered" },
-  web_search:         { icon: "search",      label: "Searched" },
+  web_search:         { icon: "search",        label: "Searched" },
+  log_to_journal:     { icon: "pencil-line",   label: "Logged to journal" },
 };
 
 function appendToolCard(name, args, result) {
@@ -247,6 +266,7 @@ function appendToolCard(name, args, result) {
     if (name === "save_note")    detail = escHtml(args.content || "");
     if (name === "list_tasks")   detail = `${(result.tasks || []).length} item(s)`;
     if (name === "list_journal_files") detail = `${(result.files || []).length} file(s)`;
+    if (name === "log_to_journal") detail = result.file ? `${result.file} · ${result.time}` : "";
     el.innerHTML = `
       <i data-lucide="${meta.icon}" class="tool-icon"></i>
       <span class="tool-label">${meta.label}</span>
@@ -289,7 +309,9 @@ async function sendChat() {
       const payload = line.slice(6);
       if (payload === "[DONE]") {
         botEl.classList.remove("streaming", "typing");
-        if (botEl.classList.contains("typing")) botEl.textContent = "…";
+        // Render final text as proper HTML
+        const clean = fullText.replace(/```memory[\s\S]*?```/g, "").trim();
+        if (clean) botEl.innerHTML = renderMsgText(clean);
         break;
       }
       try {
@@ -298,13 +320,13 @@ async function sendChat() {
           appendToolCard(data.tool, data.args || {}, data.result || {});
           if (data.tool === "create_task") loadTasks();
         } else if (data.token) {
-          // First token — swap typing dots for streaming text
           if (botEl.classList.contains("typing")) {
             botEl.classList.remove("typing");
-            botEl.innerHTML = "";
+            botEl.textContent = "";
             botEl.classList.add("streaming");
           }
           fullText += data.token;
+          // While streaming: plain text + cursor (fast, no re-parsing)
           botEl.textContent = fullText.replace(/```memory[\s\S]*?```/g, "").trim();
           messagesEl.scrollTop = messagesEl.scrollHeight;
         }
@@ -971,8 +993,30 @@ document.querySelectorAll(".theme-btn").forEach(btn => {
   btn.addEventListener("click", () => applyTheme(btn.dataset.theme));
 });
 
-// Apply on load — Poimandres is default
-applyTheme(localStorage.getItem("theme") || "poimandres");
+// ── Mobile cheat sheet FAB ────────────────────────────────────────────────────
+
+const csFab     = document.getElementById("cs-fab");
+const csSheet   = document.getElementById("cs-sheet");
+const csOverlay = document.getElementById("cs-overlay");
+
+function openCheatSheet()  { csSheet.classList.add("open"); csOverlay.classList.add("open"); refreshIcons(csFab); }
+function closeCheatSheet() { csSheet.classList.remove("open"); csOverlay.classList.remove("open"); }
+
+csFab.addEventListener("click", openCheatSheet);
+csOverlay.addEventListener("click", closeCheatSheet);
+
+// Show FAB only when in journal write mode on mobile
+function updateFab() {
+  const isMobile   = window.innerWidth <= 680;
+  const isJournal  = document.getElementById("journal")?.classList.contains("active");
+  const isWrite    = journalMode === "write";
+  csFab.style.display = (isMobile && isJournal && isWrite) ? "flex" : "none";
+}
+window.addEventListener("resize", updateFab);
+// Called after mode/tab changes in setJournalMode and switchTab
+
+// Apply on load — Light is default
+applyTheme(localStorage.getItem("theme") || "light");
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
