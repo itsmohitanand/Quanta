@@ -19,10 +19,20 @@ class ChatRequest(BaseModel):
 
 def get_notes_dir_for_user(user_id: int) -> Path:
     db = get_db()
-    row = db.execute("SELECT notes_dir FROM settings WHERE user_id = ?", (user_id,)).fetchone()
-    db.close()
-    raw = (row["notes_dir"] or "").strip() if row else ""
-    return Path(raw) if raw else Path.home() / "quanta-notes"
+    row = db.execute(
+        "SELECT s.notes_dir, u.username FROM settings s JOIN users u ON u.id = s.user_id WHERE s.user_id = ?",
+        (user_id,),
+    ).fetchone()
+    if not row:
+        user = db.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
+        db.close()
+        username = user["username"] if user else "default"
+    else:
+        db.close()
+        if (row["notes_dir"] or "").strip():
+            return Path(row["notes_dir"].strip())
+        username = row["username"]
+    return Path.home() / "Documents" / "engram" / f"engram-{username}-default"
 
 
 def build_system_prompt(user_id: int) -> str:
@@ -30,11 +40,11 @@ def build_system_prompt(user_id: int) -> str:
     today = str(date.today())
 
     commitments = db.execute(
-        "SELECT title FROM tasks WHERE user_id = ? AND horizon IN ('year','life') AND done = 0 ORDER BY created_at DESC LIMIT 8",
+        "SELECT title FROM items WHERE user_id = ? AND type IN ('commitment','project') AND status != 'done' ORDER BY created_at DESC LIMIT 8",
         (user_id,),
     ).fetchall()
     actions = db.execute(
-        "SELECT title, deadline FROM tasks WHERE user_id = ? AND horizon NOT IN ('year','life') AND done = 0 "
+        "SELECT title, deadline FROM items WHERE user_id = ? AND type = 'action' AND status NOT IN ('done','someday') "
         "ORDER BY deadline ASC NULLS LAST LIMIT 10",
         (user_id,),
     ).fetchall()
@@ -59,10 +69,12 @@ def build_system_prompt(user_id: int) -> str:
         "",
         "Tools — use them when relevant, without asking first:",
         "- Journal/notes mentioned → call list_journal_files or read_journal.",
-        "- User wants to log something to their journal → call log_to_journal.",
+        "- User wants to log something → call log_to_journal.",
         "- Current events, facts, prices → call web_search.",
-        "- 'Create a task/reminder/commitment' → call create_task.",
-        "- 'What are my tasks' → call list_tasks.",
+        "- '@task …' or 'create a task/action/reminder' → call create_item (type='action'). Ask for deadline if none given.",
+        "- '@aim …' or 'add an aim/goal/commitment' → call create_item (type='commitment', horizon='year' or 'life').",
+        "- 'What are my tasks/items' → call list_items.",
+        "- 'Plan my day/week', 'block time for X', 'schedule …' → call list_items to get IDs, then schedule_item for each block.",
         "",
         "Tone: warm, direct, supportive. Mention issues once — never lecture.",
         "",
@@ -121,7 +133,7 @@ async def chat(req: ChatRequest, user_id: int = Depends(get_current_user)):
     db.execute("INSERT INTO messages (user_id, role, content) VALUES (?, ?, ?)", (user_id, "user", req.message))
     db.commit()
     history = db.execute(
-        "SELECT role, content FROM messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 40",
+        "SELECT role, content FROM messages WHERE user_id = ? AND role != 'log' ORDER BY created_at DESC LIMIT 40",
         (user_id,),
     ).fetchall()
     db.close()

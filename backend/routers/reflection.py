@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from ..database import get_db
 from ..auth import get_current_user
 from ..ollama import chat_once
-from .journal import _default_notes_dir
+from .journal import get_notes_dir as _default_notes_dir
 
 router = APIRouter()
 
@@ -18,6 +18,8 @@ Generate a structured, honest, forward-looking reflection that helps this person
 Write in second person. Be direct — like a trusted advisor who has read everything and will not let them off the hook.
 
 {accountability_section}
+
+{aims_section}
 
 {chat_section}
 
@@ -103,6 +105,7 @@ def chart_data(user_id: int = Depends(get_current_user)):
 async def generate_reflection(user_id: int = Depends(get_current_user)):
     db = get_db()
     since = (datetime.utcnow() - timedelta(days=7)).isoformat()
+    stale_since = (datetime.utcnow() - timedelta(days=14)).isoformat()
 
     messages = db.execute(
         "SELECT role, content FROM messages WHERE user_id = ? AND created_at >= ? ORDER BY created_at",
@@ -115,6 +118,42 @@ async def generate_reflection(user_id: int = Depends(get_current_user)):
     ).fetchall()
 
     row = db.execute("SELECT notes_dir FROM settings WHERE user_id = ?", (user_id,)).fetchone()
+
+    # ── Aim progress ──────────────────────────────────────────────────────────
+    aims_rows = db.execute(
+        """SELECT i.id, i.title, i.horizon,
+                  COUNT(c.id)                                            AS total,
+                  SUM(CASE WHEN c.status = 'done' THEN 1 ELSE 0 END)   AS done,
+                  MAX(e.created_at)                                      AS last_event
+           FROM items i
+           LEFT JOIN items c ON c.parent_id = i.id
+           LEFT JOIN item_events e ON e.item_id = i.id
+           WHERE i.user_id = ? AND i.type IN ('commitment','project')
+             AND i.status != 'done'
+           GROUP BY i.id
+           ORDER BY i.created_at""",
+        (user_id,),
+    ).fetchall()
+
+    recent_done = db.execute(
+        """SELECT i.title, p.title AS parent_title, e.created_at
+           FROM item_events e
+           JOIN items i ON i.id = e.item_id
+           LEFT JOIN items p ON p.id = i.parent_id
+           WHERE e.user_id = ? AND e.event = 'completed' AND e.created_at >= ?
+           ORDER BY e.created_at DESC LIMIT 20""",
+        (user_id, since),
+    ).fetchall()
+
+    deadline_slips = db.execute(
+        """SELECT i.title, e.detail
+           FROM item_events e
+           JOIN items i ON i.id = e.item_id
+           WHERE e.user_id = ? AND e.event = 'deadline_changed' AND e.created_at >= ?
+           ORDER BY e.created_at DESC LIMIT 10""",
+        (user_id, since),
+    ).fetchall()
+
     db.close()
 
     accountability_section = ""
@@ -128,6 +167,31 @@ async def generate_reflection(user_id: int = Depends(get_current_user)):
             "## Previous Reflections (check: is anything changing? are same problems recurring? call out stagnation)\n"
             + "\n\n---\n\n".join(parts)
         )
+
+    # ── Build aims section ────────────────────────────────────────────────────
+    aims_section = ""
+    if aims_rows:
+        lines = []
+        for a in aims_rows:
+            progress = f"{a['done']}/{a['total']} done" if a["total"] else "no sub-items"
+            last = a["last_event"]
+            if not last:
+                staleness = " [NO ACTIVITY]"
+            elif last < stale_since:
+                staleness = f" [STALLED — last activity {last[:10]}]"
+            else:
+                staleness = f" (last active {last[:10]})"
+            lines.append(f"- {a['title']} ({a['horizon']}): {progress}{staleness}")
+        aims_section = "## Active Aims & Progress\n" + "\n".join(lines)
+
+    if recent_done:
+        parts = [f"- {r['title']}" + (f" (→ {r['parent_title']})" if r["parent_title"] else "")
+                 for r in recent_done]
+        aims_section += "\n\n## Completed This Week\n" + "\n".join(parts)
+
+    if deadline_slips:
+        parts = [f"- {r['title']}: {r['detail']}" for r in deadline_slips]
+        aims_section += "\n\n## Deadline Slips This Week\n" + "\n".join(parts)
 
     chat_section = ""
     if messages:
@@ -156,14 +220,15 @@ async def generate_reflection(user_id: int = Depends(get_current_user)):
             parts = [f"--- {label} ---\n{content}" for label, content in all_entries]
             notes_section = "## Notes & Journal\n" + "\n\n".join(parts)
 
-    if not chat_section and not notes_section:
+    if not chat_section and not notes_section and not aims_section:
         raise HTTPException(
             status_code=400,
-            detail="No chat or notes found. Chat or write a journal entry first."
+            detail="No data found. Chat, write a journal entry, or add some aims first."
         )
 
     prompt = REFLECTION_PROMPT.format(
         accountability_section=accountability_section,
+        aims_section=aims_section,
         chat_section=chat_section,
         notes_section=notes_section,
     )

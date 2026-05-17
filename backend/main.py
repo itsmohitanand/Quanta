@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from .database import init_db
 from .notifications import notification_loop
 from .telegram_bot import telegram_polling_loop
-from .routers import auth, chat, journal, notes, reflection, settings, tasks
+from .routers import auth, chat, journal, notes, reflection, settings, items
 
 app = FastAPI(title="Quanta")
 
@@ -30,7 +30,7 @@ app.include_router(auth.router,        prefix="/api")
 app.include_router(chat.router,        prefix="/api")
 app.include_router(journal.router,     prefix="/api")
 app.include_router(reflection.router,  prefix="/api")
-app.include_router(tasks.router,       prefix="/api")
+app.include_router(items.router,       prefix="/api")
 app.include_router(notes.router,       prefix="/api")
 app.include_router(settings.router,    prefix="/api")
 

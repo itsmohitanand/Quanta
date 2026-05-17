@@ -23,7 +23,8 @@ import httpx
 
 from .database import get_db
 from .auth import verify_password
-from .ollama import chat_once
+from .ollama import chat_once, chat_with_tools
+from .tools import TOOLS, execute_tool
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -95,14 +96,10 @@ def get_username(user_id: int) -> str:
 
 def get_notes_dir(user_id: int) -> Path:
     db = get_db()
-    row = db.execute("SELECT notes_dir FROM settings WHERE user_id = ?", (user_id,)).fetchone()
     user = db.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
     db.close()
-    raw = (row["notes_dir"] or "").strip() if row else ""
-    if raw:
-        return Path(raw)
     uname = user["username"] if user else "default"
-    return Path.home() / "Documents" / f"quanta-{uname}-default"
+    return Path.home() / "Documents" / "engram" / f"engram-{uname}-default"
 
 
 # ── Handlers ──────────────────────────────────────────────────────────────────
@@ -159,7 +156,7 @@ async def handle_remind(token, chat_id, user_id: int, text: str):
         data = json.loads(raw[raw.index("{"):raw.rindex("}")+1])
         db = get_db()
         db.execute(
-            "INSERT INTO tasks (user_id, title, deadline, horizon) VALUES (?, ?, ?, ?)",
+            "INSERT INTO items (user_id, type, title, deadline, horizon, status) VALUES (?, 'action', ?, ?, ?, 'todo')",
             (user_id, data["title"], data.get("deadline"), "week"),
         )
         db.commit()
@@ -176,7 +173,7 @@ async def handle_remind(token, chat_id, user_id: int, text: str):
 async def handle_tasks(token, chat_id, user_id: int):
     db = get_db()
     rows = db.execute(
-        "SELECT title, deadline FROM tasks WHERE user_id = ? AND done = 0 "
+        "SELECT title, deadline FROM items WHERE user_id = ? AND status NOT IN ('done','someday') "
         "ORDER BY deadline ASC NULLS LAST LIMIT 10", (user_id,)
     ).fetchall()
     db.close()
@@ -191,20 +188,121 @@ async def handle_tasks(token, chat_id, user_id: int):
 
 
 async def handle_general(token, chat_id, user_id: int, text: str):
+    from .routers.chat import build_system_prompt, get_notes_dir_for_user
+    import json
+
     db = get_db()
     history = db.execute(
-        "SELECT role, content FROM messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 10",
+        "SELECT role, content FROM messages WHERE user_id = ? AND role != 'log' "
+        "ORDER BY created_at DESC LIMIT 20",
         (user_id,)
     ).fetchall()
-    db.close()
-    msgs = [{"role": r["role"], "content": r["content"]} for r in reversed(history)]
-    msgs.append({"role": "user", "content": text})
-    reply = await chat_once(msgs)
-    db = get_db()
-    db.execute("INSERT INTO messages (user_id, role, content) VALUES (?, ?, ?)", (user_id, "user", text))
-    db.execute("INSERT INTO messages (user_id, role, content) VALUES (?, ?, ?)", (user_id, "assistant", reply))
+    db.execute("INSERT INTO messages (user_id, role, content) VALUES (?, ?, ?)",
+               (user_id, "user", text))
     db.commit()
     db.close()
+
+    system = build_system_prompt(user_id)
+    notes_dir = get_notes_dir_for_user(user_id)
+    working = [{"role": "system", "content": system}]
+    working += [{"role": r["role"], "content": r["content"]} for r in reversed(history)]
+    working.append({"role": "user", "content": text})
+
+    # Tool loop (max 3 rounds — keep Telegram responses fast)
+    for _ in range(3):
+        try:
+            resp = await chat_with_tools(working, TOOLS)
+        except Exception as e:
+            await send(token, chat_id, f"Error: {e}")
+            return
+        msg = resp.get("message", {})
+        tool_calls = msg.get("tool_calls") or []
+        if not tool_calls:
+            break
+        working.append({
+            "role": "assistant",
+            "content": msg.get("content", ""),
+            "tool_calls": tool_calls,
+        })
+        for tc in tool_calls:
+            fn   = tc.get("function", {})
+            name = fn.get("name", "")
+            args = fn.get("arguments", {})
+            if isinstance(args, str):
+                try: args = json.loads(args)
+                except Exception: args = {}
+            result = await execute_tool(name, args, user_id, notes_dir)
+            working.append({"role": "tool", "content": json.dumps(result)})
+
+    reply = msg.get("content", "") or await chat_once(working)
+
+    db = get_db()
+    db.execute("INSERT INTO messages (user_id, role, content) VALUES (?, ?, ?)",
+               (user_id, "assistant", reply))
+    db.commit()
+    db.close()
+    await send(token, chat_id, reply[:4000])
+
+
+async def handle_plan(token, chat_id, user_id: int, text: str):
+    """Suggest and apply a time-blocked schedule via AI tool loop."""
+    from .routers.chat import build_system_prompt, get_notes_dir_for_user
+    import json
+
+    # Resolve target date from text ("today" / "tomorrow" / default today)
+    tl = text.lower()
+    target = datetime.now()
+    if "tomorrow" in tl:
+        from datetime import timedelta
+        target = datetime.now() + timedelta(days=1)
+    date_str   = target.strftime("%Y-%m-%d")
+    date_label = target.strftime("%A, %d %B")
+
+    await send(token, chat_id, f"📅 Planning {date_label}…")
+
+    system = build_system_prompt(user_id)
+    notes_dir = get_notes_dir_for_user(user_id)
+    prompt = (
+        f"Create a time-blocked schedule for {date_label} ({date_str}).\n"
+        "1. Call list_items to see all open actions and aims.\n"
+        "2. Pick the most important / most urgent items (deadlines first).\n"
+        "3. Call schedule_item for each — prefer 90-min deep-work blocks, "
+        "30-min for lighter tasks. Leave gaps between blocks.\n"
+        "4. After scheduling, summarise what you blocked and why.\n"
+        "Don't schedule before 07:00 or after 21:00."
+    )
+
+    working = [
+        {"role": "system", "content": system},
+        {"role": "user",   "content": prompt},
+    ]
+
+    for _ in range(6):
+        try:
+            resp = await chat_with_tools(working, TOOLS)
+        except Exception as e:
+            await send(token, chat_id, f"Error: {e}")
+            return
+        msg        = resp.get("message", {})
+        tool_calls = msg.get("tool_calls") or []
+        if not tool_calls:
+            break
+        working.append({
+            "role": "assistant",
+            "content": msg.get("content", ""),
+            "tool_calls": tool_calls,
+        })
+        for tc in tool_calls:
+            fn   = tc.get("function", {})
+            name = fn.get("name", "")
+            args = fn.get("arguments", {})
+            if isinstance(args, str):
+                try: args = json.loads(args)
+                except Exception: args = {}
+            result = await execute_tool(name, args, user_id, notes_dir)
+            working.append({"role": "tool", "content": json.dumps(result)})
+
+    reply = msg.get("content", "") or "Done — check your Schedule view."
     await send(token, chat_id, reply[:4000])
 
 
@@ -251,6 +349,8 @@ async def route(token, chat_id, telegram_id: str, tg_username: str | None, text:
         await handle_remind(token, chat_id, user_id, t)
     elif tl in ("tasks", "/tasks"):
         await handle_tasks(token, chat_id, user_id)
+    elif tl.startswith("plan") or tl.startswith("/plan"):
+        await handle_plan(token, chat_id, user_id, t)
     elif tl in ("help", "/help", "/start"):
         await handle_help(token, chat_id, linked=True)
     else:

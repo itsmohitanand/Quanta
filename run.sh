@@ -11,5 +11,12 @@ if [ -f "$(dirname "$0")/.env" ]; then
   set -a && source "$(dirname "$0")/.env" && set +a
 fi
 
-cd "$(dirname "$0")"
+REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$REPO_DIR"
+
+# Attach to (or create) the 'enigma' zellij session if not already inside it
+if command -v zellij &>/dev/null && [ "${ZELLIJ_SESSION_NAME}" != "enigma" ]; then
+  exec zellij --session enigma run -- bash "$REPO_DIR/run.sh"
+fi
+
 uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload

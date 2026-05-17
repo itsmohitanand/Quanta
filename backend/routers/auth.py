@@ -6,8 +6,7 @@ from ..auth import hash_password, verify_password, create_session
 
 
 def _bootstrap_user_dir(username: str) -> None:
-    """Create ~/Documents/quanta-{username}-default with standard subfolders."""
-    base = Path.home() / "Documents" / f"quanta-{username}-default"
+    base = Path.home() / "Documents" / "engram" / f"engram-{username}-default"
     for sub in ("daily", "auto", "topics", "inbox"):
         (base / sub).mkdir(parents=True, exist_ok=True)
 

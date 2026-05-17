@@ -14,23 +14,23 @@ async def send_whatsapp(phone: str, apikey: str, message: str):
 async def check_and_notify():
     window = (datetime.utcnow() + timedelta(minutes=10)).isoformat()
     db = get_db()
-    tasks = db.execute(
-        "SELECT t.id, t.title, t.deadline, s.whatsapp_number, s.callmebot_apikey "
-        "FROM tasks t LEFT JOIN settings s ON t.user_id = s.user_id "
-        "WHERE t.done = 0 AND t.notify_whatsapp = 1 AND t.notified = 0 "
-        "AND t.deadline IS NOT NULL AND t.deadline <= ?",
+    due = db.execute(
+        "SELECT i.id, i.title, i.deadline, s.whatsapp_number, s.callmebot_apikey "
+        "FROM items i LEFT JOIN settings s ON i.user_id = s.user_id "
+        "WHERE i.status NOT IN ('done','someday') AND i.notify_whatsapp = 1 AND i.notified = 0 "
+        "AND i.deadline IS NOT NULL AND i.deadline <= ?",
         (window,),
     ).fetchall()
 
-    for task in tasks:
-        phone = task["whatsapp_number"] or ""
-        apikey = task["callmebot_apikey"] or ""
+    for item in due:
+        phone  = item["whatsapp_number"] or ""
+        apikey = item["callmebot_apikey"] or ""
         if phone and apikey:
             try:
-                await send_whatsapp(phone, apikey, f"Quanta reminder: {task['title']}")
-                db.execute("UPDATE tasks SET notified = 1 WHERE id = ?", (task["id"],))
+                await send_whatsapp(phone, apikey, f"Quanta reminder: {item['title']}")
+                db.execute("UPDATE items SET notified = 1 WHERE id = ?", (item["id"],))
             except Exception as e:
-                print(f"WhatsApp send failed for task {task['id']}: {e}")
+                print(f"WhatsApp send failed for item {item['id']}: {e}")
 
     db.commit()
     db.close()
@@ -38,7 +38,7 @@ async def check_and_notify():
 
 async def notification_loop():
     while True:
-        await asyncio.sleep(300)  # every 5 minutes
+        await asyncio.sleep(300)
         try:
             await check_and_notify()
         except Exception as e:

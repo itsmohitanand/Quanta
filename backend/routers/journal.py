@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -11,23 +12,12 @@ router = APIRouter()
 TEXT_SUFFIXES = {".typ", ".md", ".txt"}
 
 
-def _default_notes_dir(user_id: int) -> Path:
-    """~/Documents/quanta-{username}-default, created if missing."""
+def get_notes_dir(user_id: int) -> Path:
     db = get_db()
     user = db.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
     db.close()
     username = user["username"] if user else "default"
-    return Path.home() / "Documents" / f"quanta-{username}-default"
-
-
-def get_notes_dir(user_id: int) -> Path:
-    db = get_db()
-    row = db.execute("SELECT notes_dir FROM settings WHERE user_id = ?", (user_id,)).fetchone()
-    db.close()
-
-    raw = (row["notes_dir"] or "").strip() if row else ""
-    path = Path(raw) if raw else _default_notes_dir(user_id)
-
+    path = Path.home() / "Documents" / "engram" / f"engram-{username}-default"
     path.mkdir(parents=True, exist_ok=True)
     (path / "daily").mkdir(exist_ok=True)
     return path
@@ -87,6 +77,32 @@ def write_file(body: JournalEntry, path: str = Query(...), user_id: int = Depend
     return {"ok": True}
 
 
+class LogEntry(BaseModel):
+    text: str
+
+
+@router.post("/journal/log")
+def log_entry(body: LogEntry, user_id: int = Depends(get_current_user)):
+    notes_dir = get_notes_dir(user_id)
+    now = datetime.now()
+    today = now.strftime("%Y-%m-%d")
+    time_str = now.strftime("%H:%M")
+    path = notes_dir / "auto" / f"{today}.typ"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists():
+        path.write_text(f"= Auto Log — {today}\n\n")
+    with path.open("a") as f:
+        f.write(f"+ [{time_str} · Chat] {body.text}\n")
+    db = get_db()
+    db.execute(
+        "INSERT INTO messages (user_id, role, content) VALUES (?, ?, ?)",
+        (user_id, "log", body.text),
+    )
+    db.commit()
+    db.close()
+    return {"file": f"auto/{today}.typ", "time": time_str, "text": body.text}
+
+
 @router.get("/journal/{date}")
 def read_journal(date: str, user_id: int = Depends(get_current_user)):
     notes_dir = get_notes_dir(user_id)
@@ -141,25 +157,22 @@ Journal:
     except Exception:
         raise HTTPException(status_code=500, detail="Could not parse model response")
 
+    source_ref = f"daily/{date}.typ"
     db = get_db()
-    goals_added = notes_added = 0
+    commitments_added = notes_added = 0
 
     for g in data.get("goals", []):
         exists = db.execute(
-            "SELECT id FROM goals WHERE user_id = ? AND title = ?", (user_id, g["title"])
+            "SELECT id FROM items WHERE user_id = ? AND title = ? AND type = 'commitment'",
+            (user_id, g["title"]),
         ).fetchone()
         if not exists:
             db.execute(
-                "INSERT INTO goals (user_id, title, description, priority) VALUES (?, ?, ?, ?)",
-                (user_id, g["title"], g.get("description", ""), g.get("priority", 1)),
+                "INSERT INTO items (user_id, type, title, description, horizon, status, source_ref) "
+                "VALUES (?, 'commitment', ?, ?, 'year', 'todo', ?)",
+                (user_id, g["title"], g.get("description", ""), source_ref),
             )
-            goals_added += 1
-
-    habits_before = db.execute("SELECT COUNT(*) as c FROM habits WHERE user_id = ?", (user_id,)).fetchone()["c"]
-    for h in data.get("habits", []):
-        db.execute("INSERT OR IGNORE INTO habits (user_id, name) VALUES (?, ?)", (user_id, h))
-    habits_after = db.execute("SELECT COUNT(*) as c FROM habits WHERE user_id = ?", (user_id,)).fetchone()["c"]
-    habits_added = habits_after - habits_before
+            commitments_added += 1
 
     for n in data.get("notes", []):
         db.execute(
@@ -170,4 +183,4 @@ Journal:
 
     db.commit()
     db.close()
-    return {"goals_added": goals_added, "habits_added": habits_added, "notes_added": notes_added}
+    return {"commitments_added": commitments_added, "notes_added": notes_added}

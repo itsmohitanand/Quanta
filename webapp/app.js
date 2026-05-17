@@ -38,10 +38,9 @@ async function showApp() {
   await loadHistory();
   loadReflections();
   loadTasks();
-  // Always open on journal/write — chat no longer has its own tab
-  localStorage.removeItem("lastTab");
   switchTab("journal");
   setJournalMode("write");
+  switchBuildView(localStorage.getItem("buildView") || "now");
 }
 
 document.getElementById("auth-form").addEventListener("submit", async (e) => {
@@ -81,9 +80,8 @@ document.querySelectorAll(".tab[data-tab]").forEach((btn) => {
   btn.addEventListener("click", () => {
     switchTab(btn.dataset.tab);
     if (btn.dataset.tab === "reflection") loadCharts();
-    if (btn.dataset.tab === "journal") {
-      setJournalMode("write"); // always return to write mode
-    }
+    if (btn.dataset.tab === "journal")    setJournalMode("write");
+    if (btn.dataset.tab === "tasks")      switchBuildView(currentBuildView || "now");
   });
 });
 
@@ -105,6 +103,8 @@ function setJournalMode(mode) {
   wCtrl.style.display     = isChat ? "none"  : "contents";
   cCtrl.style.display     = isChat ? "flex"  : "none";
 
+  if (isChat) requestAnimationFrame(() => { messagesEl.scrollTop = messagesEl.scrollHeight; });
+
   document.querySelectorAll(".mt-btn").forEach(b =>
     b.classList.toggle("active", b.dataset.mode === mode)
   );
@@ -112,7 +112,8 @@ function setJournalMode(mode) {
   updateFab();
 }
 
-document.querySelectorAll(".mt-btn").forEach(btn => {
+// Journal Write/Chat toggle — scoped to journal section only
+document.querySelectorAll("#journal .mt-btn[data-mode]").forEach(btn => {
   btn.addEventListener("click", () => {
     setJournalMode(btn.dataset.mode);
     refreshIcons();
@@ -203,7 +204,13 @@ async function loadHistory() {
   divider.className = "history-divider";
   divider.textContent = "── previous messages ──";
   messagesEl.appendChild(divider);
-  messages.forEach((m) => appendMessage(m.role, m.content));
+  messages.forEach((m) => {
+    if (m.role === "log") {
+      appendToolCard("log_to_journal", {}, { text: m.content });
+    } else {
+      appendMessage(m.role, m.content);
+    }
+  });
   const sep = document.createElement("div");
   sep.className = "history-divider";
   sep.textContent = "── today ──";
@@ -224,12 +231,14 @@ chatInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); }
 });
 document.getElementById("chat-send-btn").addEventListener("click", sendChat);
+
 // keep old form submit as fallback if form still exists
 document.getElementById("chat-form")?.addEventListener("submit", (e) => { e.preventDefault(); sendChat(); });
 
 const TOOL_LABELS = {
-  create_task:        { icon: "pin",           label: "Committed" },
-  list_tasks:         { icon: "list-checks",   label: "Checked tasks" },
+  create_item:        { icon: "pin",           label: "Added to Build" },
+  list_items:         { icon: "list-checks",   label: "Checked items" },
+  schedule_item:      { icon: "calendar-plus", label: "Scheduled" },
   read_journal:       { icon: "book-open",     label: "Read journal" },
   list_journal_files: { icon: "folder",        label: "Browsed notes" },
   save_note:          { icon: "bookmark-plus", label: "Remembered" },
@@ -261,12 +270,13 @@ function appendToolCard(name, args, result) {
     refreshIcons(el);
   } else {
     let detail = "";
-    if (name === "create_task")  detail = `<strong>${escHtml(args.title || "")}</strong>${args.deadline ? " · " + args.deadline.replace("T"," ") : ""}`;
+    if (name === "create_item")   detail = `<strong>${escHtml(args.title || "")}</strong>${args.deadline ? " · " + args.deadline.replace("T"," ") : ""} <em>${args.type || "action"}</em>`;
+    if (name === "schedule_item") detail = `<strong>${escHtml(String(args.item_id))}</strong> · ${(args.scheduled_start||"").slice(11,16)} – ${(args.scheduled_end||"").slice(11,16)}`;
     if (name === "read_journal") detail = args.date || "";
     if (name === "save_note")    detail = escHtml(args.content || "");
-    if (name === "list_tasks")   detail = `${(result.tasks || []).length} item(s)`;
+    if (name === "list_items")   detail = `${(result.items || []).length} item(s)`;
     if (name === "list_journal_files") detail = `${(result.files || []).length} file(s)`;
-    if (name === "log_to_journal") detail = result.file ? `${result.file} · ${result.time}` : "";
+    if (name === "log_to_journal") detail = result.text ? escHtml(result.text) : (result.file ? `${result.file} · ${result.time}` : "");
     el.innerHTML = `
       <i data-lucide="${meta.icon}" class="tool-icon"></i>
       <span class="tool-label">${meta.label}</span>
@@ -275,12 +285,37 @@ function appendToolCard(name, args, result) {
   }
 
   messagesEl.appendChild(el);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
+  requestAnimationFrame(() => { messagesEl.scrollTop = messagesEl.scrollHeight; });
 }
 
 async function sendChat() {
   const text = chatInput.value.trim();
   if (!text) return;
+
+  // @task / @aim → switch to chat mode then fall through to AI
+  if (text.toLowerCase().startsWith("@task ") || text.toLowerCase().startsWith("@aim ")) {
+    setJournalMode("chat");
+    chatCmdHint.style.display = "none";
+    chatInput.classList.remove("cmd-active");
+  }
+
+  if (text.toLowerCase().startsWith("@log ")) {
+    const entry = text.slice(5).trim();
+    if (!entry) return;
+    chatInput.value = "";
+    chatInput.style.height = "auto";
+    const res = await apiFetch("/api/journal/log", {
+      method: "POST",
+      body: JSON.stringify({ text: entry }),
+    });
+    chatCmdHint.style.display = "none";
+    chatInput.classList.remove("cmd-log");
+    if (res && res.ok) {
+      const d = await res.json();
+      appendToolCard("log_to_journal", {}, { text: entry, file: d.file, time: d.time });
+    }
+    return;
+  }
   chatInput.value = "";
   chatInput.style.height = "auto";
 
@@ -318,7 +353,8 @@ async function sendChat() {
         const data = JSON.parse(payload);
         if (data.tool) {
           appendToolCard(data.tool, data.args || {}, data.result || {});
-          if (data.tool === "create_task") loadTasks();
+          if (data.tool === "create_item")   loadTasks();
+          if (data.tool === "schedule_item") { loadTasks(); loadSchedule(); }
         } else if (data.token) {
           if (botEl.classList.contains("typing")) {
             botEl.classList.remove("typing");
@@ -335,9 +371,22 @@ async function sendChat() {
   }
 }
 
+const chatCmdHint = document.getElementById("chat-cmd-hint");
+
 chatInput.addEventListener("input", () => {
   chatInput.style.height = "auto";
   chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + "px";
+  const val = chatInput.value.toLowerCase();
+  const isLog  = val.startsWith("@log");
+  const isTask = val.startsWith("@task");
+  const isAim  = val.startsWith("@aim");
+  const isCmd  = isLog || isTask || isAim;
+  if (isLog)  chatCmdHint.innerHTML = `<i data-lucide="pencil-line"></i> Logging to journal`;
+  if (isTask) chatCmdHint.innerHTML = `<i data-lucide="pin"></i> Adding task — include a deadline or Quanta will ask`;
+  if (isAim)  chatCmdHint.innerHTML = `<i data-lucide="target"></i> Adding aim`;
+  chatCmdHint.style.display = isCmd ? "flex" : "none";
+  chatInput.classList.toggle("cmd-log", isLog);
+  if (isCmd) refreshIcons(chatCmdHint);
 });
 
 // ── Reflection ────────────────────────────────────────────────────────────────
@@ -643,17 +692,19 @@ async function deleteReflection(id) {
   loadReflections();
 }
 
-// ── Tasks ─────────────────────────────────────────────────────────────────────
+// ── Build — North · Now · Wake ────────────────────────────────────────────────
 
 let taskWAEnabled = false;
 let whatsappConfigured = false;
 let taskType = "task"; // "task" | "goal"
+let currentBuildView = "now";
+let allItems = [];
 
 function escHtml(str) {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// Type toggle
+// Action / Commitment toggle
 document.querySelectorAll(".tt-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tt-btn").forEach(b => b.classList.remove("active"));
@@ -687,19 +738,59 @@ document.getElementById("task-whatsapp-toggle").addEventListener("click", () => 
   updateWAToggle();
 });
 
+// ── Build tab switching ───────────────────────────────────────────────────────
+
+function switchBuildView(view) {
+  currentBuildView = view;
+  localStorage.setItem("buildView", view);
+  document.querySelectorAll(".mt-btn[data-view]").forEach(b =>
+    b.classList.toggle("active", b.dataset.view === view)
+  );
+  document.querySelectorAll(".build-view").forEach(v => v.classList.remove("active"));
+  document.getElementById(`build-${view}`)?.classList.add("active");
+  document.getElementById("task-form").style.display = view === "wake" ? "none" : "";
+  if (view === "wake") loadWake();
+  else loadTasks();
+}
+
+document.querySelectorAll(".mt-btn[data-view]").forEach(btn =>
+  btn.addEventListener("click", () => switchBuildView(btn.dataset.view))
+);
+
+// Build ↔ Schedule top-level switch
+function switchSectionMode(section) {
+  document.querySelectorAll(".sm-btn").forEach(b =>
+    b.classList.toggle("active", b.dataset.section === section)
+  );
+  document.getElementById("pane-build").classList.toggle("active", section === "build");
+  document.getElementById("pane-schedule").classList.toggle("active", section === "schedule");
+  // Show Now/North/Wake controls only in Build mode
+  const vc = document.getElementById("build-view-controls");
+  if (vc) vc.style.display = section === "build" ? "flex" : "none";
+  if (section === "schedule") { if (!allItems.length) loadTasks(); loadSchedule(); }
+  else switchBuildView(currentBuildView || "now");
+}
+
+document.querySelectorAll(".sm-btn").forEach(btn =>
+  btn.addEventListener("click", () => switchSectionMode(btn.dataset.section))
+);
+
 async function loadTasks() {
   await checkWhatsappConfig();
-  const res = await apiFetch("/api/tasks");
+  const res = await apiFetch("/api/items");
   if (!res) return;
-  renderTasks(await res.json());
+  allItems = await res.json();
+  populateParentSelector(allItems);
+  if (currentBuildView === "north") renderNorth(allItems);
+  else renderNow(allItems);
 }
 
 const HORIZON_LABEL = {
   today: "Today", week: "This week", month: "This month",
-  quarter: "This quarter", year: "This year", life: "Long-term",
+  quarter: "This quarter", year: "This year", life: "Long-term", anytime: "Anytime",
 };
 
-const GOAL_HORIZONS = new Set(["year", "life"]);
+const COMMITMENT_TYPES = new Set(["commitment", "project"]);
 
 function deadlineToHorizon(dl) {
   const days = (new Date(dl) - new Date()) / 864e5;
@@ -709,113 +800,336 @@ function deadlineToHorizon(dl) {
   return "quarter";
 }
 
-function renderTasks(tasks) {
+// ── Now view ──────────────────────────────────────────────────────────────────
+
+function renderNow(items) {
   const list = document.getElementById("task-list");
   list.innerHTML = "";
 
-  const goals = tasks.filter(t => GOAL_HORIZONS.has(t.horizon || "") && !t.done);
-  const active = tasks.filter(t => !GOAL_HORIZONS.has(t.horizon || "") && !t.done);
-  const done   = tasks.filter(t => t.done);
+  const byId = Object.fromEntries(items.map(i => [i.id, i]));
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const weekEnd  = new Date(); weekEnd.setDate(weekEnd.getDate() + 7);
 
-  if (!tasks.length) {
-    list.innerHTML = `<div class="empty-state">Nothing here yet.<br><br>Add a <strong>Commitment</strong> for something you're building long-term,<br>or an <strong>Action</strong> for something to do now.<br><br>Or just tell Quanta in chat — it will create them for you.</div>`;
+  const active = items.filter(t => t.status !== "done" && t.status !== "someday");
+
+  const todayItems = active.filter(t => {
+    if (t.horizon === "today") return true;
+    if (t.deadline && t.deadline.slice(0, 10) === todayStr) return true;
+    if (t.scheduled_start && t.scheduled_start.slice(0, 10) === todayStr) return true;
+    return false;
+  });
+
+  const weekItems = active.filter(t => {
+    if (todayItems.includes(t)) return false;
+    if (t.horizon === "week") return true;
+    if (t.deadline) {
+      const dl = new Date(t.deadline);
+      return dl > new Date() && dl <= weekEnd;
+    }
+    return false;
+  });
+
+  const doneToday = items.filter(t =>
+    t.status === "done" && t.completed_at && t.completed_at.slice(0, 10) === todayStr
+  );
+
+  if (!todayItems.length && !weekItems.length) {
+    list.innerHTML = `<div class="empty-state">Nothing due today.<br><br>Add something for today or check <strong>North</strong> to plan ahead.</div>`;
     return;
   }
 
-  // ── Commitments section ──────────────────────────────────────────
-  if (goals.length) {
+  const renderNowItem = (t) => {
+    const parent = t.parent_id && byId[t.parent_id];
+    const isDone = t.status === "done";
+    const el = document.createElement("div");
+    el.className = `task-item${isDone ? " done" : ""}`;
+    const dl = t.deadline ? new Date(t.deadline).toLocaleString("en-GB", {
+      hour: "2-digit", minute: "2-digit",
+    }) : "";
+    el.innerHTML = `
+      <div class="task-check${isDone ? " done" : ""}"></div>
+      <div class="task-body">
+        <div class="task-title">${escHtml(t.title)}${dl ? `<span class="now-time">${dl}</span>` : ""}</div>
+        ${parent ? `<div class="parent-hint">↑ ${escHtml(parent.title)}</div>` : ""}
+      </div>
+      <div class="task-actions">
+        <button class="task-edit icon-btn" title="Edit"><i data-lucide="pencil"></i></button>
+        <button class="del" title="Delete"><i data-lucide="x"></i></button>
+      </div>`;
+    refreshIcons(el);
+    el.querySelector(".task-check").addEventListener("click", () =>
+      isDone ? updateItemStatus(t.id, "todo") : markItemDone(t.id)
+    );
+    el.querySelector(".task-edit").addEventListener("click", () => openEditItem(t));
+    el.querySelector(".del").addEventListener("click", () => deleteItem(t.id));
+    return el;
+  };
+
+  if (todayItems.length) {
     const sec = document.createElement("div");
-    sec.className = "goals-section";
-    sec.innerHTML = `<div class="goals-section-label">Commitments</div>`;
-    goals.forEach(g => sec.appendChild(renderGoalCard(g)));
+    sec.className = "task-group";
+    sec.innerHTML = `<div class="task-group-label today">Today</div>`;
+    todayItems.forEach(t => sec.appendChild(renderNowItem(t)));
     list.appendChild(sec);
   }
 
-  // ── Actions section ──────────────────────────────────────────────
-  if (active.length || done.length) {
+  if (weekItems.length) {
     const sec = document.createElement("div");
-    sec.className = "tasks-section";
-    sec.innerHTML = `<div class="tasks-section-label">Actions</div>`;
+    sec.className = "task-group";
+    sec.innerHTML = `<div class="task-group-label week">This week</div>`;
+    weekItems.forEach(t => sec.appendChild(renderNowItem(t)));
+    list.appendChild(sec);
+  }
 
-    const now = new Date();
-    const groups = { overdue: [], today: [], week: [], month: [], quarter: [], none: [] };
-
-    active.forEach(t => {
-      const h = t.deadline ? deadlineToHorizon(t.deadline) : (t.horizon || "none");
-      const dl = t.deadline ? new Date(t.deadline) : null;
-      if (dl && dl < now) groups.overdue.push(t);
-      else if (groups[h]) groups[h].push(t);
-      else groups.none.push(t);
-    });
-
-    const order = [
-      ["overdue", "Overdue"], ["today", "Today"], ["week", "This week"],
-      ["month", "This month"], ["quarter", "This quarter"], ["none", "Anytime"],
-    ];
-    order.forEach(([key, label]) => {
-      if (!groups[key].length) return;
-      const grp = document.createElement("div");
-      grp.className = "task-group";
-      grp.innerHTML = `<div class="task-group-label ${key}">${label}</div>`;
-      groups[key].forEach(t => grp.appendChild(renderTaskItem(t)));
-      sec.appendChild(grp);
-    });
-
-    if (done.length) {
-      const grp = document.createElement("div");
-      grp.className = "task-group";
-      grp.innerHTML = `<div class="task-group-label done">Done</div>`;
-      done.slice(0, 10).forEach(t => grp.appendChild(renderTaskItem(t)));
-      sec.appendChild(grp);
-    }
-
+  if (doneToday.length) {
+    const sec = document.createElement("div");
+    sec.className = "task-group";
+    sec.innerHTML = `<div class="task-group-label done">Done today</div>`;
+    doneToday.forEach(t => sec.appendChild(renderNowItem(t)));
     list.appendChild(sec);
   }
 }
 
-function renderGoalCard(g) {
-  const el = document.createElement("div");
-  el.className = "goal-card";
-  el.innerHTML = `
-    <div class="goal-card-header">
-      <div class="goal-card-title">${escHtml(g.title)}</div>
-      <div class="goal-horizon-badge ${g.horizon}">${HORIZON_LABEL[g.horizon] || g.horizon}</div>
-    </div>
-    ${g.notes ? `<div class="goal-card-notes">${escHtml(g.notes)}</div>` : ""}
-    <div class="goal-card-actions">
-      <button class="goal-achieve-btn" data-id="${g.id}"><i data-lucide="check-circle-2"></i> Achieved</button>
-      <button class="task-edit icon-btn" data-id="${g.id}" title="Edit"><i data-lucide="pencil"></i></button>
-      <button class="del" data-id="${g.id}"><i data-lucide="x"></i></button>
-    </div>`;
-  refreshIcons(el);
-  el.querySelector(".goal-achieve-btn").addEventListener("click", () => toggleTask(g.id, true));
+// ── North view ────────────────────────────────────────────────────────────────
 
-  el.querySelector(".task-edit").addEventListener("click", () => openEditTask(g));
-  el.querySelector(".del").addEventListener("click", () => deleteTask(g.id));
+function renderNorth(items) {
+  const tree = document.getElementById("north-tree");
+  tree.innerHTML = "";
+
+  const byId = Object.fromEntries(items.map(i => [i.id, i]));
+  const children = {};
+  items.forEach(i => { children[i.id] = []; });
+  items.forEach(i => {
+    if (i.parent_id && byId[i.parent_id]) children[i.parent_id].push(i);
+  });
+
+  const roots = items.filter(i => !i.parent_id || !byId[i.parent_id]);
+  roots.sort((a, b) => {
+    const ac = COMMITMENT_TYPES.has(a.type) ? 0 : 1;
+    const bc = COMMITMENT_TYPES.has(b.type) ? 0 : 1;
+    return ac - bc;
+  });
+
+  const active = roots.filter(i => i.status !== "done" && i.status !== "someday");
+  const someday = items.filter(i => i.status === "someday");
+
+  if (!active.length && !someday.length) {
+    tree.innerHTML = `<div class="empty-state">Nothing here yet.<br><br>Add an <strong>Aim</strong> to start building your north.</div>`;
+    return;
+  }
+
+  active.forEach(item => tree.appendChild(renderNorthNode(item, children, byId, 0)));
+
+  if (someday.length) {
+    const sec = document.createElement("div");
+    sec.className = "someday-section";
+    sec.innerHTML = `<div class="someday-label">Maybe one day</div>`;
+    someday.forEach(i => {
+      const chip = document.createElement("button");
+      chip.className = "someday-chip";
+      chip.textContent = i.title;
+      chip.addEventListener("click", () => openEditItem(i));
+      sec.appendChild(chip);
+    });
+    tree.appendChild(sec);
+  }
+}
+
+function renderNorthNode(item, children, byId, depth) {
+  const kids = (children[item.id] || []).filter(k => k.status !== "someday");
+  const doneKids = kids.filter(k => k.status === "done");
+  const activeKids = kids.filter(k => k.status !== "done");
+  const isDone = item.status === "done";
+  const isRoot = depth === 0;
+
+  const el = document.createElement("div");
+  el.className = `north-node${isRoot ? " north-root" : ""}${isDone ? " north-done" : ""}`;
+
+  const header = document.createElement("div");
+  header.className = "north-header";
+
+  const check = document.createElement("div");
+  check.className = `task-check${isDone ? " done" : ""}`;
+  check.addEventListener("click", () =>
+    isDone ? updateItemStatus(item.id, "todo") : markItemDone(item.id)
+  );
+
+  const body = document.createElement("div");
+  body.className = "north-body";
+  body.innerHTML = `<div class="north-title">${escHtml(item.title)}</div>`;
+  if (item.description)
+    body.innerHTML += `<div class="north-desc">${escHtml(item.description)}</div>`;
+
+  if (isRoot && kids.length) {
+    const pct = Math.round((doneKids.length / kids.length) * 100);
+    body.innerHTML += `
+      <div class="aim-progress-wrap">
+        <div class="aim-progress-bar"><div class="aim-progress-fill" style="width:${pct}%"></div></div>
+        <span class="aim-progress-label">${doneKids.length} / ${kids.length}</span>
+      </div>`;
+  }
+
+  const meta = document.createElement("div");
+  meta.className = "north-meta";
+  if (item.horizon && HORIZON_LABEL[item.horizon]) {
+    const badge = document.createElement("span");
+    badge.className = `north-badge ${item.horizon}`;
+    badge.textContent = HORIZON_LABEL[item.horizon];
+    meta.appendChild(badge);
+  }
+
+  const acts = document.createElement("div");
+  acts.className = "north-actions";
+  acts.innerHTML = `
+    <button class="icon-btn" title="Edit"><i data-lucide="pencil"></i></button>
+    <button class="icon-btn" title="Delete"><i data-lucide="x"></i></button>`;
+  refreshIcons(acts);
+  acts.children[0].addEventListener("click", () => openEditItem(item));
+  acts.children[1].addEventListener("click", () => deleteItem(item.id));
+
+  header.append(check, body, meta, acts);
+  el.appendChild(header);
+
+  if (activeKids.length || doneKids.length) {
+    const wrap = document.createElement("div");
+    wrap.className = "north-children";
+    activeKids.forEach(kid => wrap.appendChild(renderNorthNode(kid, children, byId, depth + 1)));
+    if (doneKids.length) {
+      doneKids.forEach(kid => wrap.appendChild(renderNorthNode(kid, children, byId, depth + 1)));
+    }
+    el.appendChild(wrap);
+  }
+
   return el;
 }
 
-function renderTaskItem(t) {
+// ── Wake view ─────────────────────────────────────────────────────────────────
+
+async function loadWake() {
+  const res = await apiFetch("/api/events?limit=300");
+  if (!res || !res.ok) return;
+  renderWake(await res.json());
+}
+
+function renderWake(events) {
+  const feed = document.getElementById("wake-feed");
+  feed.innerHTML = "";
+
+  if (!events.length) {
+    feed.innerHTML = `<div class="empty-state">Your trail is empty.<br><br>Complete items and they'll appear here — a record of what you've actually done.</div>`;
+    return;
+  }
+
+  const weeks = groupEventsByWeek(events);
+  weeks.forEach(({ label, items: wEvents }) => {
+    const sec = document.createElement("div");
+    sec.className = "wake-week";
+    sec.innerHTML = `<div class="wake-week-label">${label}</div>`;
+    wEvents.forEach(e => {
+      const row = document.createElement("div");
+      row.className = `wake-event wake-${e.event}`;
+      const icons = { completed: "✓", created: "+", status_changed: "→",
+                      deadline_changed: "~", linked: "⌥", abandoned: "↓" };
+      const dateStr = new Date(e.created_at + "Z").toLocaleDateString("en-GB",
+        { day: "numeric", month: "short" });
+      row.innerHTML = `
+        <span class="wake-icon">${icons[e.event] || "·"}</span>
+        <div class="wake-body">
+          <span class="wake-title">${escHtml(e.item_title)}</span>
+          ${e.parent_title ? `<span class="wake-parent">↑ ${escHtml(e.parent_title)}</span>` : ""}
+          ${e.detail && e.event !== "created" && e.event !== "completed"
+            ? `<span class="wake-detail">${escHtml(e.detail)}</span>` : ""}
+        </div>
+        <span class="wake-date">${dateStr}</span>`;
+      sec.appendChild(row);
+    });
+    feed.appendChild(sec);
+  });
+}
+
+function groupEventsByWeek(events) {
+  const weeks = {};
+  const now = new Date();
+  const thisMonday = new Date(now);
+  thisMonday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  thisMonday.setHours(0, 0, 0, 0);
+
+  events.forEach(e => {
+    const d = new Date(e.created_at + "Z");
+    const mon = new Date(d);
+    mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    mon.setHours(0, 0, 0, 0);
+    const key = mon.toISOString().slice(0, 10);
+    if (!weeks[key]) {
+      const diffWeeks = Math.round((thisMonday - mon) / (7 * 864e5));
+      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+      const fmt = d => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+      const label = diffWeeks === 0 ? "This week"
+                  : diffWeeks === 1 ? "Last week"
+                  : `${fmt(mon)} – ${fmt(sun)}`;
+      weeks[key] = { label, items: [] };
+    }
+    weeks[key].items.push(e);
+  });
+
+  return Object.entries(weeks)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([, v]) => v);
+}
+
+// ── Parent selector ───────────────────────────────────────────────────────────
+
+function populateParentSelector(items) {
+  const sel = document.getElementById("task-parent");
+  if (!sel) return;
+  while (sel.options.length > 1) sel.remove(1);
+  const candidates = items.filter(i => i.status !== "done" && i.status !== "someday");
+  const aims    = candidates.filter(i => COMMITMENT_TYPES.has(i.type));
+  const actions = candidates.filter(i => !COMMITMENT_TYPES.has(i.type));
+  [[aims, "Aims"], [actions, "Actions"]].forEach(([group, label]) => {
+    if (!group.length) return;
+    const grp = document.createElement("optgroup");
+    grp.label = label;
+    group.forEach(i => {
+      const opt = document.createElement("option");
+      opt.value = i.id;
+      opt.textContent = i.title.length > 48 ? i.title.slice(0, 48) + "…" : i.title;
+      grp.appendChild(opt);
+    });
+    sel.appendChild(grp);
+  });
+}
+
+// ── Shared item rendering (used in Now) ───────────────────────────────────────
+
+function renderActionItem(t) {
+  return renderNowItem_standalone(t);
+}
+
+function renderNowItem_standalone(t) {
+  const isDone = t.status === "done";
   const el = document.createElement("div");
-  el.className = `task-item${t.done ? " done" : ""}`;
+  el.className = `task-item${isDone ? " done" : ""}`;
   const dl = t.deadline ? new Date(t.deadline).toLocaleString("en-GB", {
-    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
+    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
   }) : "";
   el.innerHTML = `
-    <div class="task-check${t.done ? " done" : ""}"></div>
+    <div class="task-check${isDone ? " done" : ""}"></div>
     <div class="task-body">
       <div class="task-title">${escHtml(t.title)}</div>
-      ${t.notes ? `<div class="task-notes">${escHtml(t.notes)}</div>` : ""}
-      ${dl ? `<div class="task-deadline"><i data-lucide="clock-3"></i>${dl}${t.notify_whatsapp ? ' <i data-lucide="phone-incoming"></i>' : ""}</div>` : ""}
+      ${t.description ? `<div class="task-notes">${escHtml(t.description)}</div>` : ""}
+      ${dl ? `<div class="task-deadline"><i data-lucide="clock-3"></i>${dl}</div>` : ""}
     </div>
     <div class="task-actions">
       <button class="task-edit icon-btn" title="Edit"><i data-lucide="pencil"></i></button>
       <button class="del" title="Delete"><i data-lucide="x"></i></button>
     </div>`;
   refreshIcons(el);
-  el.querySelector(".task-check").addEventListener("click", () => toggleTask(t.id, !t.done));
-  el.querySelector(".del").addEventListener("click", () => deleteTask(t.id));
-  el.querySelector(".task-edit").addEventListener("click", () => openEditTask(t));
+  el.querySelector(".task-check").addEventListener("click", () =>
+    isDone ? updateItemStatus(t.id, "todo") : markItemDone(t.id)
+  );
+  el.querySelector(".task-edit").addEventListener("click", () => openEditItem(t));
+  el.querySelector(".del").addEventListener("click", () => deleteItem(t.id));
   return el;
 }
 
@@ -824,96 +1138,131 @@ document.getElementById("task-form").addEventListener("submit", async (e) => {
   const title = document.getElementById("task-title").value.trim();
   if (!title) return;
 
-  const isGoal = taskType === "goal";
-  const deadline = isGoal ? null : (document.getElementById("task-deadline").value || null);
-  const horizon  = isGoal
+  const isCommitment = taskType === "goal";
+  const deadline    = isCommitment ? null : (document.getElementById("task-deadline").value || null);
+  const horizon     = isCommitment
     ? document.getElementById("goal-horizon").value
     : (deadline ? deadlineToHorizon(deadline) : "week");
-  const notes = document.getElementById("task-notes").value.trim();
+  const description = document.getElementById("task-notes").value.trim();
 
-  await apiFetch("/api/tasks", {
+  const parentVal = document.getElementById("task-parent").value;
+  await apiFetch("/api/items", {
     method: "POST",
-    body: JSON.stringify({ title, notes, deadline, horizon, notify_whatsapp: taskWAEnabled }),
+    body: JSON.stringify({
+      type: isCommitment ? "commitment" : "action",
+      title, description, deadline, horizon,
+      parent_id: parentVal ? parseInt(parentVal) : null,
+      notify_whatsapp: taskWAEnabled,
+    }),
   });
 
   document.getElementById("task-title").value = "";
   document.getElementById("task-deadline").value = "";
   document.getElementById("task-notes").value = "";
+  document.getElementById("task-parent").value = "";
   taskWAEnabled = false;
   updateWAToggle();
   loadTasks();
 });
 
-async function toggleTask(id, done) {
-  await apiFetch(`/api/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ done }) });
+async function markItemDone(id) {
+  await apiFetch(`/api/items/${id}`, { method: "PATCH", body: JSON.stringify({ status: "done" }) });
+  await loadTasks();
+  if (currentBuildView === "wake") loadWake();
+}
+
+async function updateItemStatus(id, status) {
+  await apiFetch(`/api/items/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
   loadTasks();
 }
 
-async function deleteTask(id) {
-  await apiFetch(`/api/tasks/${id}`, { method: "DELETE" });
+async function deleteItem(id) {
+  await apiFetch(`/api/items/${id}`, { method: "DELETE" });
   loadTasks();
 }
 
-function openEditTask(t) {
+// Keep old names as aliases so any stray references still work
+const toggleTask = (id, done) => done ? markItemDone(id) : updateItemStatus(id, "todo");
+const deleteTask = deleteItem;
+
+function openEditItem(t) {
   const existing = document.getElementById("edit-task-modal");
   if (existing) existing.remove();
-  const isGoal = GOAL_HORIZONS.has(t.horizon || "");
+
+  const isCommitment = COMMITMENT_TYPES.has(t.type);
   const modal = document.createElement("div");
   modal.id = "edit-task-modal";
   modal.className = "modal-overlay";
   modal.innerHTML = `
     <div class="modal-box">
-      <div class="modal-header"><span>Edit ${isGoal ? "Commitment" : "Action"}</span><button class="modal-close" id="edit-close">×</button></div>
+      <div class="modal-header">
+        <span>Edit ${isCommitment ? (t.type === "project" ? "Project" : "Commitment") : "Action"}</span>
+        <button class="modal-close" id="edit-close">×</button>
+      </div>
       <form id="edit-task-form">
         <label>Title</label>
         <input id="edit-title" value="${escHtml(t.title)}" required />
-        <label>Notes</label>
-        <input id="edit-notes" value="${escHtml(t.notes || "")}" placeholder="Optional" />
-        ${isGoal ? `
+        <label>Description</label>
+        <input id="edit-notes" value="${escHtml(t.description || "")}" placeholder="Optional" />
+        ${isCommitment ? `
         <label>Horizon</label>
         <select id="edit-horizon">
-          <option value="month" ${t.horizon==="month"?"selected":""}>This month</option>
-          <option value="quarter" ${t.horizon==="quarter"?"selected":""}>This quarter</option>
-          <option value="year" ${t.horizon==="year"?"selected":""}>This year</option>
-          <option value="life" ${t.horizon==="life"?"selected":""}>Long-term</option>
+          <option value="month"   ${t.horizon==="month"   ?"selected":""}>This month</option>
+          <option value="quarter" ${t.horizon==="quarter" ?"selected":""}>This quarter</option>
+          <option value="year"    ${t.horizon==="year"    ?"selected":""}>This year</option>
+          <option value="life"    ${t.horizon==="life"    ?"selected":""}>Long-term</option>
         </select>` : `
+        <label>Status</label>
+        <select id="edit-status">
+          <option value="todo"        ${t.status==="todo"        ?"selected":""}>To do</option>
+          <option value="in_progress" ${t.status==="in_progress" ?"selected":""}>In progress</option>
+          <option value="waiting"     ${t.status==="waiting"     ?"selected":""}>Waiting</option>
+          <option value="someday"     ${t.status==="someday"     ?"selected":""}>Someday / Maybe</option>
+        </select>
         <label>Deadline</label>
         <input id="edit-deadline" type="datetime-local" value="${t.deadline ? t.deadline.slice(0,16) : ""}" />
-        <label class="toggle-row"><span>WhatsApp</span><input type="checkbox" id="edit-wa" ${t.notify_whatsapp?"checked":""} /></label>`}
+        <label class="toggle-row"><span>WhatsApp reminder</span><input type="checkbox" id="edit-wa" ${t.notify_whatsapp?"checked":""} /></label>`}
         <button type="submit">Save</button>
       </form>
     </div>`;
+
   document.body.appendChild(modal);
   modal.style.display = "flex";
   modal.querySelector("#edit-close").addEventListener("click", () => modal.remove());
   modal.addEventListener("click", e => { if (e.target === modal) modal.remove(); });
+
   modal.querySelector("#edit-task-form").addEventListener("submit", async e => {
     e.preventDefault();
     const update = {
-      title: document.getElementById("edit-title").value.trim(),
-      notes: document.getElementById("edit-notes").value.trim(),
+      title:       document.getElementById("edit-title").value.trim(),
+      description: document.getElementById("edit-notes").value.trim(),
     };
-    if (isGoal) {
+    if (isCommitment) {
       update.horizon = document.getElementById("edit-horizon").value;
     } else {
+      update.status   = document.getElementById("edit-status").value;
       update.deadline = document.getElementById("edit-deadline").value || null;
       update.notify_whatsapp = document.getElementById("edit-wa").checked;
-      update.horizon = update.deadline ? deadlineToHorizon(update.deadline) : "week";
+      if (update.deadline) update.horizon = deadlineToHorizon(update.deadline);
     }
-    await apiFetch(`/api/tasks/${t.id}`, { method: "PATCH", body: JSON.stringify(update) });
+    await apiFetch(`/api/items/${t.id}`, { method: "PATCH", body: JSON.stringify(update) });
     modal.remove();
     loadTasks();
   });
 }
 
+// alias kept for any stale references
+const openEditTask = openEditItem;
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 
-document.getElementById("settings-btn").addEventListener("click", async () => {
+async function openSettings() {
   document.getElementById("settings-modal").style.display = "flex";
   refreshIcons(document.getElementById("settings-modal"));
   const res = await apiFetch("/api/settings");
   if (!res) return;
   const d = await res.json();
+  document.getElementById("settings-notes-dir").placeholder = `~/Documents/engram/engram-${username}-default`;
   document.getElementById("settings-notes-dir").value = d.notes_dir || "";
   document.getElementById("settings-whatsapp").value = d.whatsapp_number || "";
   document.getElementById("settings-apikey").value = d.callmebot_apikey || "";
@@ -921,7 +1270,9 @@ document.getElementById("settings-btn").addEventListener("click", async () => {
   document.getElementById("settings-tg-chat").value = d.telegram_chat_id || "";
   document.getElementById("settings-error").textContent = "";
   document.getElementById("settings-success").textContent = "";
-});
+}
+document.getElementById("settings-btn").addEventListener("click", openSettings);
+document.getElementById("topbar-settings-btn").addEventListener("click", openSettings);
 
 document.getElementById("settings-close").addEventListener("click", () => {
   document.getElementById("settings-modal").style.display = "none";
@@ -1014,6 +1365,498 @@ function updateFab() {
 }
 window.addEventListener("resize", updateFab);
 // Called after mode/tab changes in setJournalMode and switchTab
+
+// ── Schedule — Day & Week views ───────────────────────────────────────────────
+
+const SCHED_START   = 6;          // 6 am
+const SCHED_END     = 23;         // 11 pm
+const PX_HR         = 72;         // pixels per hour
+const SCHED_COLORS  = [
+  { bg: "rgba(79,142,247,0.16)",  border: "#4f8ef7"  },
+  { bg: "rgba(76,175,128,0.16)",  border: "#4caf80"  },
+  { bg: "rgba(191,106,247,0.16)", border: "#bf6af7"  },
+  { bg: "rgba(232,164,74,0.16)",  border: "#e8a44a"  },
+  { bg: "rgba(93,228,199,0.16)",  border: "#5de4c7"  },
+  { bg: "rgba(247,79,106,0.16)",  border: "#f74f6a"  },
+];
+
+let schedDate    = new Date();
+let schedMode    = "day";   // "day" | "week"
+let nowLineTimer = null;
+
+function schedColor(item) {
+  return SCHED_COLORS[(item.parent_id || item.id) % SCHED_COLORS.length];
+}
+
+function timeToTop(dtStr) {
+  const t    = new Date(dtStr);
+  const mins = (t.getHours() - SCHED_START) * 60 + t.getMinutes();
+  return Math.max(0, mins * (PX_HR / 60));
+}
+
+function durationToHeight(startStr, endStr) {
+  const s    = new Date(startStr);
+  const e    = new Date(endStr);
+  const mins = Math.max(15, (e - s) / 60000);
+  return mins * (PX_HR / 60);
+}
+
+function dateKey(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+function isSameDay(dtStr, d) {
+  return dtStr && dtStr.slice(0, 10) === dateKey(d);
+}
+
+function weekStart(d) {
+  const m = new Date(d);
+  m.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  m.setHours(0, 0, 0, 0);
+  return m;
+}
+
+// ── Block picker (click on empty slot) ───────────────────────────────────────
+
+let pickerEl = null;
+
+function closePicker() {
+  if (pickerEl) { pickerEl.remove(); pickerEl = null; }
+}
+
+function openBlockPicker(date, clickY, existingItem = null) {
+  closePicker();
+
+  const clickMins  = Math.floor((clickY / (PX_HR / 60)) / 15) * 15;
+  const startHour  = Math.floor(clickMins / 60) + SCHED_START;
+  const startMin   = clickMins % 60;
+  const endHour    = startHour + (existingItem ? 0 : 1);
+  const endMin     = startMin;
+  const pad        = n => String(n).padStart(2, "0");
+  const dateStr    = dateKey(date);
+  const defStart   = `${dateStr}T${pad(startHour)}:${pad(startMin)}`;
+  const defEnd     = existingItem
+    ? (existingItem.scheduled_end || `${dateStr}T${pad(endHour)}:${pad(endMin)}`)
+    : `${dateStr}T${pad(endHour)}:${pad(endMin)}`;
+
+  const unscheduled = allItems.filter(i =>
+    i.status !== "done" && i.status !== "someday" && !i.scheduled_start
+  );
+
+  pickerEl = document.createElement("div");
+  pickerEl.className = "block-picker";
+
+  if (existingItem) {
+    pickerEl.innerHTML = `
+      <div class="bp-title">${escHtml(existingItem.title)}</div>
+      <div class="bp-row">
+        <input class="bp-time" id="bp-start" type="time" value="${defStart.slice(11,16)}" />
+        <span class="bp-sep">–</span>
+        <input class="bp-time" id="bp-end" type="time" value="${defEnd.slice(11,16)}" />
+      </div>
+      <div class="bp-actions">
+        <button class="bp-save">Save</button>
+        <button class="bp-unschedule">Remove block</button>
+        <button class="bp-cancel">Cancel</button>
+      </div>`;
+    pickerEl.querySelector(".bp-save").addEventListener("click", async () => {
+      const s = `${dateStr}T${pickerEl.querySelector("#bp-start").value}`;
+      const e = `${dateStr}T${pickerEl.querySelector("#bp-end").value}`;
+      await apiFetch(`/api/items/${existingItem.id}`,
+        { method: "PATCH", body: JSON.stringify({ scheduled_start: s, scheduled_end: e }) });
+      closePicker(); loadSchedule();
+    });
+    pickerEl.querySelector(".bp-unschedule").addEventListener("click", async () => {
+      await apiFetch(`/api/items/${existingItem.id}`,
+        { method: "PATCH", body: JSON.stringify({ scheduled_start: "", scheduled_end: "" }) });
+      closePicker(); loadSchedule();
+    });
+  } else {
+    const opts = unscheduled.map(i =>
+      `<option value="${i.id}">${escHtml(i.title.slice(0, 50))}</option>`
+    ).join("");
+    pickerEl.innerHTML = `
+      <div class="bp-title">New block</div>
+      <div class="bp-row">
+        <input class="bp-time" id="bp-start" type="time" value="${defStart.slice(11,16)}" />
+        <span class="bp-sep">–</span>
+        <input class="bp-time" id="bp-end" type="time" value="${defEnd.slice(11,16)}" />
+      </div>
+      <select class="bp-select" id="bp-item">
+        <option value="">— pick an item —</option>
+        ${opts}
+      </select>
+      <div class="bp-actions">
+        <button class="bp-save">Block it</button>
+        <button class="bp-cancel">Cancel</button>
+      </div>`;
+    pickerEl.querySelector(".bp-save").addEventListener("click", async () => {
+      const itemId = parseInt(pickerEl.querySelector("#bp-item").value);
+      if (!itemId) return;
+      const s = `${dateStr}T${pickerEl.querySelector("#bp-start").value}`;
+      const e = `${dateStr}T${pickerEl.querySelector("#bp-end").value}`;
+      await apiFetch(`/api/items/${itemId}`,
+        { method: "PATCH", body: JSON.stringify({ scheduled_start: s, scheduled_end: e }) });
+      closePicker(); loadSchedule();
+    });
+  }
+
+  pickerEl.querySelector(".bp-cancel").addEventListener("click", closePicker);
+  document.getElementById("schedule-root").appendChild(pickerEl);
+
+  // Position near click but keep on screen
+  const rootRect = document.getElementById("schedule-root").getBoundingClientRect();
+  const pickerH  = 200;
+  const top      = Math.min(clickY + rootRect.top - 80, window.innerHeight - pickerH - 20);
+  pickerEl.style.top  = `${top}px`;
+  pickerEl.style.left = `${rootRect.left + rootRect.width / 2 - 130}px`;
+
+  // Close on outside click
+  setTimeout(() => document.addEventListener("click", function handler(e) {
+    if (pickerEl && !pickerEl.contains(e.target)) { closePicker(); document.removeEventListener("click", handler); }
+  }), 10);
+}
+
+// ── Overlap resolver ──────────────────────────────────────────────────────────
+
+function resolveOverlaps(blocks) {
+  blocks.sort((a, b) => a.top - b.top);
+  const cols = [];
+  blocks.forEach(b => {
+    let placed = false;
+    for (let c = 0; c < cols.length; c++) {
+      const last = cols[c][cols[c].length - 1];
+      if (b.top >= last.top + last.height) { cols[c].push(b); b.col = c; placed = true; break; }
+    }
+    if (!placed) { b.col = cols.length; cols.push([b]); }
+  });
+  const total = cols.length;
+  blocks.forEach(b => { b.colCount = total; });
+  return blocks;
+}
+
+// ── Timeline builder (shared by day and each week-day column) ─────────────────
+
+function buildTimeline(date, scheduled, unscheduled, compact = false) {
+  const hours  = SCHED_END - SCHED_START;
+  const totalH = hours * PX_HR;
+  const pxMin  = PX_HR / 60;
+
+  const wrap = document.createElement("div");
+  wrap.className = compact ? "tl-wrap tl-compact" : "tl-wrap";
+  wrap.style.height = `${totalH}px`;
+
+  // Hour lines + labels
+  for (let h = 0; h <= hours; h++) {
+    const hr = h + SCHED_START;
+    const line = document.createElement("div");
+    line.className = "tl-hour-line";
+    line.style.top = `${h * PX_HR}px`;
+    if (!compact) {
+      line.innerHTML = `<span class="tl-hour-label">${hr === 12 ? "12 pm" : hr > 12 ? `${hr-12} pm` : `${hr} am`}</span>`;
+    }
+    wrap.appendChild(line);
+
+    // Half-hour tick
+    if (h < hours) {
+      const half = document.createElement("div");
+      half.className = "tl-half-line";
+      half.style.top = `${h * PX_HR + PX_HR / 2}px`;
+      wrap.appendChild(half);
+    }
+  }
+
+  // Current time indicator (today only)
+  if (dateKey(date) === dateKey(new Date())) {
+    const updateNowLine = () => {
+      const old = wrap.querySelector(".tl-now");
+      if (old) old.remove();
+      const now = new Date();
+      const mins = (now.getHours() - SCHED_START) * 60 + now.getMinutes();
+      if (mins < 0 || mins > hours * 60) return;
+      const top = mins * pxMin;
+      const el = document.createElement("div");
+      el.className = "tl-now";
+      el.style.top = `${top}px`;
+      el.innerHTML = `<div class="tl-now-dot"></div>`;
+      wrap.appendChild(el);
+    };
+    updateNowLine();
+    if (nowLineTimer) clearInterval(nowLineTimer);
+    nowLineTimer = setInterval(updateNowLine, 60000);
+  }
+
+  // Blocks
+  const blockData = scheduled.map(item => ({
+    item,
+    top:    timeToTop(item.scheduled_start),
+    height: item.scheduled_end
+      ? durationToHeight(item.scheduled_start, item.scheduled_end)
+      : PX_HR,  // 1-hour default if no end
+    col: 0, colCount: 1,
+  }));
+  resolveOverlaps(blockData);
+
+  const LABEL_W = compact ? 0 : 56;
+
+  blockData.forEach(({ item, top, height, col, colCount }) => {
+    const color = schedColor(item);
+    const availW = 100;
+    const w = `calc(${availW / colCount}% - 4px)`;
+    const l = `calc(${LABEL_W}px + ${(col / colCount) * (100 - (LABEL_W > 0 ? LABEL_W / wrap.offsetWidth * 100 : 0))}%)`;
+
+    const startLabel = item.scheduled_start.slice(11, 16);
+    const endLabel   = item.scheduled_end ? item.scheduled_end.slice(11, 16) : "";
+    const parent     = item.parent_id && allItems.find(i => i.id === item.parent_id);
+
+    const el = document.createElement("div");
+    el.className = "sched-block";
+    el.style.cssText = `
+      top:${top}px; height:${Math.max(24, height)}px;
+      left:${LABEL_W + 4 + col * 4}px;
+      right:${(colCount - col - 1) * 4 + 4}px;
+      background:${color.bg}; border-left-color:${color.border};`;
+    el.innerHTML = `
+      <div class="sb-time">${startLabel}${endLabel ? " – " + endLabel : ""}</div>
+      <div class="sb-title">${escHtml(item.title)}</div>
+      ${parent && height > 40 ? `<div class="sb-parent">↑ ${escHtml(parent.title)}</div>` : ""}`;
+    el.addEventListener("click", e => {
+      e.stopPropagation();
+      openBlockPicker(date, top, item);
+    });
+    wrap.appendChild(el);
+  });
+
+  // Click empty area → picker
+  wrap.addEventListener("click", e => {
+    if (e.target.closest(".sched-block") || e.target.closest(".tl-hour-label")) return;
+    const rect = wrap.getBoundingClientRect();
+    const y    = e.clientY - rect.top;
+    openBlockPicker(date, y);
+  });
+
+  return { wrap, unscheduled };
+}
+
+// ── Day view ─────────────────────────────────────────────────────────────────
+
+function renderDayView() {
+  const root = document.getElementById("schedule-root");
+  root.innerHTML = "";
+
+  const today  = dateKey(schedDate);
+  const sched  = allItems.filter(i => i.scheduled_start && isSameDay(i.scheduled_start, schedDate));
+  const unschd = allItems.filter(i =>
+    !i.scheduled_start && i.status !== "done" && i.status !== "someday" &&
+    (i.horizon === "today" || (i.deadline && i.deadline.slice(0, 10) === today))
+  );
+
+  // Header
+  const header = document.createElement("div");
+  header.className = "sched-header";
+  const label = schedDate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  header.innerHTML = `
+    <div class="sched-nav">
+      <button class="sched-nav-btn" id="sched-prev"><i data-lucide="chevron-left"></i></button>
+      <span class="sched-date-label">${label}</span>
+      <button class="sched-nav-btn" id="sched-next"><i data-lucide="chevron-right"></i></button>
+      <button class="sched-today-btn" id="sched-today">Today</button>
+    </div>
+    <div class="sched-mode-toggle">
+      <button class="sched-mode-btn active" data-mode="day">Day</button>
+      <button class="sched-mode-btn" data-mode="week">Week</button>
+    </div>
+    <button class="sched-suggest-btn" id="sched-suggest">
+      <i data-lucide="sparkles"></i> Suggest
+    </button>`;
+  root.appendChild(header);
+  refreshIcons(header);
+  wireSchedHeader();
+
+  // Body: unscheduled sidebar + timeline
+  const body = document.createElement("div");
+  body.className = "sched-day-body";
+
+  // Unscheduled sidebar
+  const sidebar = document.createElement("div");
+  sidebar.className = "sched-unscheduled";
+  sidebar.innerHTML = `<div class="sched-unschd-label">Unscheduled</div>`;
+  if (!unschd.length) {
+    sidebar.innerHTML += `<div class="sched-unschd-empty">All clear</div>`;
+  } else {
+    unschd.forEach(item => {
+      const chip = document.createElement("div");
+      chip.className = "sched-unschd-chip";
+      chip.textContent = item.title;
+      chip.draggable = true;
+      chip.dataset.id = item.id;
+      sidebar.appendChild(chip);
+    });
+  }
+  body.appendChild(sidebar);
+
+  // Timeline scroll wrapper
+  const scrollWrap = document.createElement("div");
+  scrollWrap.className = "sched-scroll";
+  const { wrap } = buildTimeline(schedDate, sched, unschd);
+  scrollWrap.appendChild(wrap);
+  body.appendChild(scrollWrap);
+  root.appendChild(body);
+
+  // Scroll to 8am on load
+  requestAnimationFrame(() => {
+    scrollWrap.scrollTop = (8 - SCHED_START) * PX_HR - 24;
+  });
+}
+
+// ── Week view ─────────────────────────────────────────────────────────────────
+
+function renderWeekView() {
+  const root = document.getElementById("schedule-root");
+  root.innerHTML = "";
+
+  const ws    = weekStart(schedDate);
+  const days  = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(ws); d.setDate(ws.getDate() + i); return d;
+  });
+  const todayStr = dateKey(new Date());
+
+  // Header
+  const header = document.createElement("div");
+  header.className = "sched-header";
+  const wEnd  = new Date(ws); wEnd.setDate(ws.getDate() + 6);
+  const wLabel = `${ws.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${wEnd.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+  header.innerHTML = `
+    <div class="sched-nav">
+      <button class="sched-nav-btn" id="sched-prev"><i data-lucide="chevron-left"></i></button>
+      <span class="sched-date-label">${wLabel}</span>
+      <button class="sched-nav-btn" id="sched-next"><i data-lucide="chevron-right"></i></button>
+      <button class="sched-today-btn" id="sched-today">Today</button>
+    </div>
+    <div class="sched-mode-toggle">
+      <button class="sched-mode-btn" data-mode="day">Day</button>
+      <button class="sched-mode-btn active" data-mode="week">Week</button>
+    </div>
+    <button class="sched-suggest-btn" id="sched-suggest">
+      <i data-lucide="sparkles"></i> Suggest week
+    </button>`;
+  root.appendChild(header);
+  refreshIcons(header);
+  wireSchedHeader();
+
+  // Grid
+  const grid = document.createElement("div");
+  grid.className = "sched-week-grid";
+
+  // Time gutter
+  const gutter = document.createElement("div");
+  gutter.className = "sched-week-gutter";
+  for (let h = SCHED_START; h <= SCHED_END; h++) {
+    const lbl = document.createElement("div");
+    lbl.className = "sched-week-hour-lbl";
+    lbl.style.top = `${(h - SCHED_START) * PX_HR}px`;
+    lbl.textContent = h === 12 ? "12p" : h > 12 ? `${h-12}p` : `${h}a`;
+    gutter.appendChild(lbl);
+  }
+  grid.appendChild(gutter);
+
+  // Day columns
+  days.forEach(day => {
+    const dk   = dateKey(day);
+    const sched = allItems.filter(i => i.scheduled_start && isSameDay(i.scheduled_start, day));
+    const isToday = dk === todayStr;
+
+    const col = document.createElement("div");
+    col.className = `sched-week-col${isToday ? " sched-today-col" : ""}`;
+
+    const dayHdr = document.createElement("div");
+    dayHdr.className = `sched-week-day-hdr${isToday ? " is-today" : ""}`;
+    dayHdr.innerHTML = `
+      <span class="sched-week-dow">${day.toLocaleDateString("en-GB", { weekday: "short" })}</span>
+      <span class="sched-week-dom">${day.getDate()}</span>`;
+    dayHdr.addEventListener("click", () => {
+      schedDate = day; schedMode = "day"; renderDayView();
+    });
+    col.appendChild(dayHdr);
+
+    const tlWrap = document.createElement("div");
+    tlWrap.className = "sched-week-tl";
+    const { wrap } = buildTimeline(day, sched, [], true);
+    tlWrap.appendChild(wrap);
+    col.appendChild(tlWrap);
+    grid.appendChild(col);
+  });
+
+  const scrollWrap = document.createElement("div");
+  scrollWrap.className = "sched-week-scroll";
+  scrollWrap.appendChild(grid);
+  root.appendChild(scrollWrap);
+
+  requestAnimationFrame(() => {
+    scrollWrap.scrollTop = (8 - SCHED_START) * PX_HR - 24;
+  });
+}
+
+// ── Header wiring ─────────────────────────────────────────────────────────────
+
+function wireSchedHeader() {
+  document.getElementById("sched-prev")?.addEventListener("click", () => {
+    if (schedMode === "day") {
+      schedDate.setDate(schedDate.getDate() - 1);
+    } else {
+      schedDate.setDate(schedDate.getDate() - 7);
+    }
+    renderSchedule();
+  });
+  document.getElementById("sched-next")?.addEventListener("click", () => {
+    if (schedMode === "day") {
+      schedDate.setDate(schedDate.getDate() + 1);
+    } else {
+      schedDate.setDate(schedDate.getDate() + 7);
+    }
+    renderSchedule();
+  });
+  document.getElementById("sched-today")?.addEventListener("click", () => {
+    schedDate = new Date(); renderSchedule();
+  });
+  document.querySelectorAll(".sched-mode-btn").forEach(btn =>
+    btn.addEventListener("click", () => {
+      schedMode = btn.dataset.mode; renderSchedule();
+    })
+  );
+  document.getElementById("sched-suggest")?.addEventListener("click", () => {
+    const d = schedDate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+    const msg = schedMode === "day"
+      ? `Plan my day for ${d}. List my open items, then schedule the most important ones with time blocks. Leave gaps between blocks for breaks.`
+      : `Plan my week of ${d}. Look at all my open items and deadlines. Create time blocks across the week for my most important work.`;
+    switchTab("journal");
+    setJournalMode("chat");
+    const ci = document.getElementById("chat-input");
+    ci.value = msg;
+    sendChat();
+  });
+}
+
+// ── Entry point ───────────────────────────────────────────────────────────────
+
+function loadSchedule() {
+  if (!allItems.length) {
+    apiFetch("/api/items").then(async r => {
+      if (r) { allItems = await r.json(); populateParentSelector(allItems); }
+      renderSchedule();
+    });
+  } else {
+    renderSchedule();
+  }
+}
+
+function renderSchedule() {
+  if (schedMode === "day") renderDayView();
+  else renderWeekView();
+}
+
+// Hook schedule_item tool card + reload schedule if active
+const _origSwitchBuild = switchBuildView;
 
 // Apply on load — Light is default
 applyTheme(localStorage.getItem("theme") || "light");

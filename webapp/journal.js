@@ -284,7 +284,6 @@ async function loadFileTree() {
   if (!res.ok) return;
   const { root, tree } = await res.json();
   notesRoot = root;
-  document.getElementById("journal-path").textContent = root;
   renderFileTree(tree);
 }
 
@@ -394,10 +393,9 @@ function initJournal() {
 
   document.getElementById("filetree-refresh").addEventListener("click", loadFileTree);
 
-  let journalLoaded = false;
   document.querySelector('[data-tab="journal"]').addEventListener("click", () => {
-    if (!journalLoaded) { journalLoaded = true; loadFileTree(); }
-    if (currentPath) loadByPath(currentPath); else loadByDate(currentDate);
+    loadFileTree();
+    if (currentPath) loadByPath(currentPath);
   });
 
   document.getElementById("new-file-btn").addEventListener("click", () => {
@@ -419,7 +417,8 @@ function initJournal() {
     });
   });
 
-  // Don't auto-load — journal content loads only when tab is clicked
+  loadFileTree();
+  setContent("");
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
