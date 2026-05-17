@@ -12,6 +12,8 @@ class SettingsIn(BaseModel):
     notes_dir: str = ""
     whatsapp_number: str = ""
     callmebot_apikey: str = ""
+    telegram_token: str = ""
+    telegram_chat_id: str = ""
 
 
 @router.get("/settings")
@@ -20,7 +22,8 @@ def get_settings(user_id: int = Depends(get_current_user)):
     row = db.execute("SELECT * FROM settings WHERE user_id = ?", (user_id,)).fetchone()
     db.close()
     if not row:
-        return {"notes_dir": "", "whatsapp_number": "", "callmebot_apikey": ""}
+        return {"notes_dir": "", "whatsapp_number": "", "callmebot_apikey": "",
+                "telegram_token": "", "telegram_chat_id": ""}
     return dict(row)
 
 
@@ -32,12 +35,17 @@ def save_settings(body: SettingsIn, user_id: int = Depends(get_current_user)):
             raise HTTPException(status_code=400, detail=f"Path does not exist: {path}")
     db = get_db()
     db.execute(
-        "INSERT INTO settings (user_id, notes_dir, whatsapp_number, callmebot_apikey) VALUES (?, ?, ?, ?) "
+        "INSERT INTO settings (user_id, notes_dir, whatsapp_number, callmebot_apikey, "
+        "telegram_token, telegram_chat_id) VALUES (?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(user_id) DO UPDATE SET "
         "notes_dir = excluded.notes_dir, "
         "whatsapp_number = excluded.whatsapp_number, "
-        "callmebot_apikey = excluded.callmebot_apikey",
-        (user_id, body.notes_dir.strip(), body.whatsapp_number.strip(), body.callmebot_apikey.strip()),
+        "callmebot_apikey = excluded.callmebot_apikey, "
+        "telegram_token = excluded.telegram_token, "
+        "telegram_chat_id = excluded.telegram_chat_id",
+        (user_id, body.notes_dir.strip(), body.whatsapp_number.strip(),
+         body.callmebot_apikey.strip(), body.telegram_token.strip(),
+         body.telegram_chat_id.strip()),
     )
     db.commit()
     db.close()
@@ -50,9 +58,9 @@ async def test_whatsapp(user_id: int = Depends(get_current_user)):
     row = db.execute("SELECT whatsapp_number, callmebot_apikey FROM settings WHERE user_id = ?", (user_id,)).fetchone()
     db.close()
     if not row or not row["whatsapp_number"] or not row["callmebot_apikey"]:
-        raise HTTPException(status_code=400, detail="WhatsApp number and API key required in settings")
+        raise HTTPException(status_code=400, detail="WhatsApp number and API key required")
     try:
-        await send_whatsapp(row["whatsapp_number"], row["callmebot_apikey"], "Quanta: WhatsApp test message ✓")
+        await send_whatsapp(row["whatsapp_number"], row["callmebot_apikey"], "Quanta: WhatsApp test ✓")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     return {"ok": True}

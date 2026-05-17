@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .database import init_db
 from .notifications import notification_loop
+from .telegram_bot import telegram_polling_loop
 from .routers import auth, chat, journal, notes, reflection, settings, tasks
 
 app = FastAPI(title="Quanta")
@@ -22,6 +23,7 @@ app.add_middleware(
 async def startup():
     init_db()
     asyncio.create_task(notification_loop())
+    asyncio.create_task(telegram_polling_loop())
 
 
 app.include_router(auth.router,        prefix="/api")

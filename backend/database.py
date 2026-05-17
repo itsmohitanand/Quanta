@@ -59,7 +59,15 @@ def init_db():
             user_id INTEGER PRIMARY KEY REFERENCES users(id),
             notes_dir TEXT DEFAULT '',
             whatsapp_number TEXT DEFAULT '',
-            callmebot_apikey TEXT DEFAULT ''
+            callmebot_apikey TEXT DEFAULT '',
+            telegram_token TEXT DEFAULT '',
+            telegram_chat_id TEXT DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS telegram_contacts (
+            telegram_id TEXT PRIMARY KEY,
+            username TEXT,
+            user_id INTEGER REFERENCES users(id),
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
     # Migrations: add columns that may not exist in older DBs
@@ -69,6 +77,8 @@ def init_db():
         "ALTER TABLE tasks ADD COLUMN notified INTEGER DEFAULT 0",
         "ALTER TABLE tasks ADD COLUMN horizon TEXT DEFAULT 'week'",
         "ALTER TABLE reflections ADD COLUMN scores TEXT DEFAULT NULL",
+        "ALTER TABLE settings ADD COLUMN telegram_token TEXT DEFAULT ''",
+        "ALTER TABLE settings ADD COLUMN telegram_chat_id TEXT DEFAULT ''",
     ]:
         try:
             conn.execute(migration)

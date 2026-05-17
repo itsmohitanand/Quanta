@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from ..database import get_db
 from ..auth import get_current_user
 from ..ollama import chat_once
-from .journal import DEFAULT_NOTES_DIR
+from .journal import _default_notes_dir
 
 router = APIRouter()
 
@@ -135,7 +135,7 @@ async def generate_reflection(user_id: int = Depends(get_current_user)):
         chat_section = f"## Recent Conversations (last 7 days)\n{lines}"
 
     raw = (row["notes_dir"] or "").strip() if row else ""
-    notes_dir = Path(raw) if raw else DEFAULT_NOTES_DIR
+    notes_dir = Path(raw) if raw else _default_notes_dir(user_id)
 
     notes_section = ""
     if notes_dir.exists():

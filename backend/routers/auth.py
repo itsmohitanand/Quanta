@@ -1,7 +1,15 @@
+from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from ..database import get_db
 from ..auth import hash_password, verify_password, create_session
+
+
+def _bootstrap_user_dir(username: str) -> None:
+    """Create ~/Documents/quanta-{username}-default with standard subfolders."""
+    base = Path.home() / "Documents" / f"quanta-{username}-default"
+    for sub in ("daily", "auto", "topics", "inbox"):
+        (base / sub).mkdir(parents=True, exist_ok=True)
 
 router = APIRouter()
 
@@ -23,6 +31,7 @@ def register(creds: Credentials):
     db.commit()
     user_id = db.execute("SELECT id FROM users WHERE username = ?", (creds.username,)).fetchone()["id"]
     db.close()
+    _bootstrap_user_dir(creds.username)
     token = create_session(user_id)
     return {"token": token, "username": creds.username}
 
@@ -34,5 +43,6 @@ def login(creds: Credentials):
     db.close()
     if not row or not verify_password(creds.password, row["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid username or password")
+    _bootstrap_user_dir(creds.username)
     token = create_session(row["id"])
     return {"token": token, "username": creds.username}

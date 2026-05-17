@@ -895,6 +895,8 @@ document.getElementById("settings-btn").addEventListener("click", async () => {
   document.getElementById("settings-notes-dir").value = d.notes_dir || "";
   document.getElementById("settings-whatsapp").value = d.whatsapp_number || "";
   document.getElementById("settings-apikey").value = d.callmebot_apikey || "";
+  document.getElementById("settings-tg-token").value = d.telegram_token || "";
+  document.getElementById("settings-tg-chat").value = d.telegram_chat_id || "";
   document.getElementById("settings-error").textContent = "";
   document.getElementById("settings-success").textContent = "";
 });
@@ -918,6 +920,8 @@ document.getElementById("settings-form").addEventListener("submit", async (e) =>
       notes_dir: document.getElementById("settings-notes-dir").value.trim(),
       whatsapp_number: document.getElementById("settings-whatsapp").value.trim(),
       callmebot_apikey: document.getElementById("settings-apikey").value.trim(),
+      telegram_token: document.getElementById("settings-tg-token").value.trim(),
+      telegram_chat_id: document.getElementById("settings-tg-chat").value.trim(),
     }),
   });
   if (!res) return;
@@ -967,8 +971,8 @@ document.querySelectorAll(".theme-btn").forEach(btn => {
   btn.addEventListener("click", () => applyTheme(btn.dataset.theme));
 });
 
-// Apply on load
-applyTheme(localStorage.getItem("theme") || "dark");
+// Apply on load — Poimandres is default
+applyTheme(localStorage.getItem("theme") || "poimandres");
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 

@@ -11,7 +11,13 @@ router = APIRouter()
 TEXT_SUFFIXES = {".typ", ".md", ".txt"}
 
 
-DEFAULT_NOTES_DIR = Path.home() / "quanta-notes"
+def _default_notes_dir(user_id: int) -> Path:
+    """~/Documents/quanta-{username}-default, created if missing."""
+    db = get_db()
+    user = db.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
+    db.close()
+    username = user["username"] if user else "default"
+    return Path.home() / "Documents" / f"quanta-{username}-default"
 
 
 def get_notes_dir(user_id: int) -> Path:
@@ -20,7 +26,7 @@ def get_notes_dir(user_id: int) -> Path:
     db.close()
 
     raw = (row["notes_dir"] or "").strip() if row else ""
-    path = Path(raw) if raw else DEFAULT_NOTES_DIR
+    path = Path(raw) if raw else _default_notes_dir(user_id)
 
     path.mkdir(parents=True, exist_ok=True)
     (path / "daily").mkdir(exist_ok=True)

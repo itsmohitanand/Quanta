@@ -33,6 +33,34 @@
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+/* ── Everblush theme ─────────────────────────────────────────────────────── */
+[data-theme="everblush"] {
+  --bg:           #232A2D;
+  --bg-deep:      #1B2124;
+  --bg-panel:     #1B2124;
+  --bg-editor:    #232A2D;
+  --bg-surface:   #2D3437;
+  --bg-raised:    #343C3F;
+  --bg-hover:     #2A3134;
+  --bg-select:    #303B3E;
+  --border:       #2D3437;
+  --border-soft:  #252D30;
+  --text:         #B3B9B8;
+  --text-bright:  #BDC3C2;
+  --text-dim:     #6B7880;
+  --text-muted:   #485258;
+  --muted:        #6B7880;
+  --accent:       #8CCF7E;
+  --accent-dim:   #2A4A24;
+  --green:        #8CCF7E;
+  --orange:       #E5C76B;
+  --danger:       #E57474;
+  --purple:       #C47FD5;
+  --cyan:         #6CBFBF;
+  --surface:      #2D3437;
+  --surface2:     #343C3F;
+}
+
 /* ── Poimandres theme ────────────────────────────────────────────────────── */
 [data-theme="poimandres"] {
   --bg:           #1B1E28;
@@ -1078,3 +1106,63 @@ input, textarea, select { font-size: 16px !important; }
   .tab { min-height: 44px; }
   .sb-footer-btn { min-height: 44px; }
 }
+
+/* ── Everblush theme overrides ────────────────────────────────────────────── */
+
+[data-theme="everblush"] body,
+[data-theme="everblush"] #app { background: var(--bg); }
+
+[data-theme="everblush"] #sidebar { background: var(--bg-deep); border-color: var(--border); }
+[data-theme="everblush"] .sb-brand { border-color: var(--border); }
+[data-theme="everblush"] .sb-footer { border-color: var(--border); }
+[data-theme="everblush"] .tab { color: var(--text-dim); }
+[data-theme="everblush"] .tab:hover { background: var(--bg-hover); color: var(--text); }
+[data-theme="everblush"] .tab.active { background: var(--bg-select); color: var(--accent); }
+[data-theme="everblush"] .tab.active::before { background: var(--accent); }
+
+[data-theme="everblush"] .jc-topbar { background: var(--bg-deep); border-color: var(--border); }
+[data-theme="everblush"] .jc-mode-toggle { background: var(--bg-deep); border-color: var(--border); }
+[data-theme="everblush"] .mt-btn.active { background: var(--bg-select); color: var(--accent); }
+
+[data-theme="everblush"] #chat-pane { background: var(--bg); }
+[data-theme="everblush"] #messages { background: var(--bg); }
+[data-theme="everblush"] .msg.assistant { background: var(--bg-surface); border-color: var(--border); color: var(--text); }
+[data-theme="everblush"] .msg.user { background: var(--accent); color: #1B2124; }
+[data-theme="everblush"] .jc-input-wrap { background: var(--bg-deep); border-color: var(--border); }
+[data-theme="everblush"] #chat-input { background: var(--bg-surface); border-color: var(--border); color: var(--text); }
+[data-theme="everblush"] .typing-dots span { background: var(--text-dim); }
+
+[data-theme="everblush"] #journal-files { background: var(--bg-panel); border-color: var(--border); }
+[data-theme="everblush"] .filetree-header { border-color: var(--border); }
+[data-theme="everblush"] .filetree-actions { border-color: var(--border); }
+[data-theme="everblush"] .filetree-folder-name { color: var(--text-dim); }
+[data-theme="everblush"] .filetree-file { color: var(--text-dim); }
+[data-theme="everblush"] .filetree-file:hover { color: var(--text-bright); background: var(--bg-hover); }
+[data-theme="everblush"] .filetree-file.active { color: var(--accent); background: var(--bg-select); }
+[data-theme="everblush"] #journal-editor-container { background: var(--bg-editor); }
+[data-theme="everblush"] #journal-editor .jl { color: var(--text); }
+[data-theme="everblush"] #journal-editor .jl.editing { background: rgba(140,207,126,0.06); color: var(--text-bright); }
+[data-theme="everblush"] #journal-editor .jl h1,
+[data-theme="everblush"] #journal-editor .jl h2 { color: var(--text-bright); }
+[data-theme="everblush"] #journal-editor .jl h2 { border-color: var(--border); }
+[data-theme="everblush"] #journal-editor .jl code { background: var(--bg-raised); color: var(--green); }
+[data-theme="everblush"] #journal-sidebar { background: var(--bg-panel); border-color: var(--border); }
+[data-theme="everblush"] .cs-typst { background: var(--bg-raised); color: #6CBFBF; }
+[data-theme="everblush"] .cs-typst.cs-h1 { color: var(--accent); }
+[data-theme="everblush"] kbd { background: var(--bg-raised); border-color: var(--border); color: var(--text-dim); }
+
+[data-theme="everblush"] .rfl-chart-panel { background: var(--bg-surface); border-color: var(--border); }
+[data-theme="everblush"] #rfl-charts { background: var(--bg-deep); border-color: var(--border); }
+[data-theme="everblush"] .score-pill { background: var(--bg-surface); border-color: var(--border); }
+[data-theme="everblush"] .reflection-card { background: var(--bg-surface); border-color: var(--border); }
+[data-theme="everblush"] .reflection-meta { background: var(--bg-deep); border-color: var(--border); }
+
+[data-theme="everblush"] .task-item { background: var(--bg-surface); border-color: var(--border); }
+[data-theme="everblush"] .goal-card { background: var(--bg-surface); border-color: var(--border); border-left-color: var(--accent); }
+
+[data-theme="everblush"] .modal-box { background: var(--bg-surface); border-color: var(--border); }
+[data-theme="everblush"] .modal-header { border-color: var(--border); }
+[data-theme="everblush"] .modal-box input { background: var(--bg); border-color: var(--border); color: var(--text); }
+[data-theme="everblush"] .auth-box { background: var(--bg-surface); border-color: var(--border); }
+[data-theme="everblush"] .auth-box input,
+[data-theme="everblush"] .auth-box select { background: var(--bg); border-color: var(--border); color: var(--text); }
