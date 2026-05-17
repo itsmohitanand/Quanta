@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Database
+quanta.db
+
+# Environment
+.env
+.python-version
+
+# macOS
+.DS_Store
+
+# Xcode
+swiftapp/*.xcodeproj/xcuserdata/
+swiftapp/DerivedData/
+swiftapp/*.xcworkspace/

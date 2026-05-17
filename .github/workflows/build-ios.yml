@@ -1,0 +1,44 @@
+name: Build Quanta iOS + macOS
+
+on:
+  push:
+    paths:
+      - 'swiftapp/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: swiftapp
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
+
+      - name: Build iOS (simulator)
+        run: |
+          xcodebuild build \
+            -project Quanta.xcodeproj \
+            -scheme Quanta-iOS \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \
+            | xcpretty || xcodebuild build \
+            -project Quanta.xcodeproj \
+            -scheme Quanta-iOS \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
+
+      - name: Build macOS
+        run: |
+          xcodebuild build \
+            -project Quanta.xcodeproj \
+            -scheme Quanta-macOS \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_TEAM=""

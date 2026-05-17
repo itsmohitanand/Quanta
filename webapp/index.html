@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
+  <title>Quanta</title>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" type="image/png" href="/icon-192.png" />
+  <!-- iOS PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Quanta" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <link rel="stylesheet" href="/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- Auth -->
+  <div id="auth-screen">
+    <div class="auth-box">
+      <div class="logo" style="font-size:26px;margin-bottom:28px;">Quanta</div>
+      <form id="auth-form">
+        <input id="auth-username" placeholder="Username" required autocomplete="username" />
+        <input id="auth-password" type="password" placeholder="Password" required autocomplete="current-password" />
+        <select id="auth-mode">
+          <option value="login">Log in</option>
+          <option value="register">Register</option>
+        </select>
+        <button type="submit">Continue</button>
+        <p id="auth-error"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Settings modal -->
+  <div id="settings-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div>
+          <div style="font-weight:700">Settings</div>
+          <div class="settings-user-label"><i data-lucide="user-round"></i> <span class="username-label"></span></div>
+        </div>
+        <button id="settings-close" class="modal-close">×</button>
+      </div>
+      <form id="settings-form">
+        <label>Theme</label>
+        <div class="theme-switcher">
+          <button type="button" class="theme-btn" data-theme="dark">
+            <span class="theme-preview" style="background:#070709;border-color:#4f8ef7"></span>
+            <span>Quanta Dark</span>
+          </button>
+          <button type="button" class="theme-btn" data-theme="poimandres">
+            <span class="theme-preview" style="background:#1B1E28;border-color:#5DE4C7"></span>
+            <span>Poimandres</span>
+          </button>
+        </div>
+
+        <label>Notes directory <span class="field-hint-inline">(path on the server running Quanta)</span></label>
+        <input id="settings-notes-dir" placeholder="Leave blank to use ~/quanta-notes/" />
+        <p class="field-hint">Absolute path on the server. Leave blank and Quanta creates <code>~/quanta-notes/</code> automatically. Useful if you already have a notes folder (e.g. Obsidian vault, Typst notes).</p>
+
+        <label>WhatsApp number <span class="field-hint-inline">(with country code, e.g. +4512345678)</span></label>
+        <input id="settings-whatsapp" placeholder="+4512345678" />
+
+        <label>Callmebot API key</label>
+        <input id="settings-apikey" placeholder="123456" />
+        <p class="field-hint">
+          To get a free API key: add <strong>+34 644 59 84 91</strong> to your contacts,
+          then send it the message <em>"I allow callmebot to send me messages"</em> on WhatsApp.
+          You'll receive an API key.
+        </p>
+
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          <button type="submit">Save</button>
+          <button type="button" id="test-whatsapp-btn" class="btn-outline">Test WhatsApp</button>
+        </div>
+        <p id="settings-error"></p>
+        <p id="settings-success"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- App -->
+  <div id="app" style="display:none;">
+
+    <!-- Left sidebar -->
+    <nav id="sidebar">
+      <div class="sb-brand">
+        <img src="/icon-192.png" class="sb-logo" alt="Quanta" />
+        <span class="sb-name">Quanta</span>
+        <button id="sidebar-collapse" class="sb-collapse" title="Collapse">
+          <i data-lucide="chevrons-left"></i>
+        </button>
+      </div>
+
+      <div class="sb-nav">
+        <button class="tab active" data-tab="journal" data-label="Journal">
+          <i data-lucide="book-open" class="sb-icon"></i>
+          <span class="sb-label">Journal</span>
+        </button>
+        <button class="tab" data-tab="reflection" data-label="Reflection">
+          <i data-lucide="sparkles" class="sb-icon"></i>
+          <span class="sb-label">Reflection</span>
+        </button>
+        <button class="tab" data-tab="tasks" data-label="Build">
+          <i data-lucide="target" class="sb-icon"></i>
+          <span class="sb-label">Build</span>
+        </button>
+      </div>
+
+      <div class="sb-footer">
+        <button id="settings-btn" class="sb-footer-btn">
+          <i data-lucide="settings-2" class="sb-icon"></i>
+          <span class="sb-label">Settings</span>
+        </button>
+        <button id="logout-btn" class="sb-footer-btn">
+          <i data-lucide="log-out" class="sb-icon"></i>
+          <span class="sb-label">Sign out</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Main content -->
+    <div id="main-content">
+
+    <!-- Journal + Chat (merged) -->
+    <section id="journal" class="view active">
+      <!-- Unified top bar -->
+      <div class="jc-topbar">
+        <div class="jc-mode-toggle">
+          <button class="mt-btn active" data-mode="write">
+            <i data-lucide="pencil-line"></i><span>Write</span>
+          </button>
+          <button class="mt-btn" data-mode="chat">
+            <i data-lucide="message-square"></i><span>Chat</span>
+          </button>
+        </div>
+
+        <div id="write-controls" class="toolbar-group">
+          <input type="date" id="journal-date" class="jc-date" />
+          <span id="journal-status" class="jc-status"></span>
+          <button id="journal-save" class="jc-save-btn">Save</button>
+          <div class="jc-divider"></div>
+          <button id="files-toggle" class="jc-icon-btn" title="Files">
+            <i data-lucide="panel-left"></i>
+          </button>
+          <button id="sidebar-toggle" class="jc-icon-btn" title="Syntax guide">
+            <i data-lucide="book-marked"></i>
+          </button>
+        </div>
+
+        <div id="chat-controls" class="toolbar-group" style="display:none">
+          <button id="clear-chat-btn" class="jc-ghost-btn">
+            <i data-lucide="rotate-ccw"></i> New conversation
+          </button>
+        </div>
+      </div>
+
+      <!-- Chat pane -->
+      <div id="chat-pane" style="display:none; flex:1; flex-direction:column; min-height:0;">
+        <div id="messages"></div>
+        <div class="jc-input-wrap">
+          <textarea id="chat-input" placeholder="Ask Quanta…" rows="1"></textarea>
+          <button id="chat-send-btn" type="button" class="jc-send-btn">
+            <i data-lucide="arrow-up"></i>
+          </button>
+        </div>
+      </div>
+
+      <div id="journal-layout" class="journal-layout">
+
+        <aside id="journal-files" class="hidden">
+          <div class="filetree-header">
+            <span class="filetree-title">Files</span>
+            <button id="filetree-refresh" class="icon-btn" title="Refresh">
+              <i data-lucide="refresh-cw"></i>
+            </button>
+          </div>
+          <div class="filetree-actions">
+            <button id="new-file-btn" class="filetree-action-btn">
+              <i data-lucide="file-plus"></i> File
+            </button>
+            <button id="new-folder-btn" class="filetree-action-btn">
+              <i data-lucide="folder-plus"></i> Folder
+            </button>
+          </div>
+          <div id="filetree-body"></div>
+        </aside>
+
+        <div id="journal-editor-container">
+          <div id="journal-editor" contenteditable="false" spellcheck="true"></div>
+        </div>
+
+        <aside id="journal-sidebar">
+          <div class="cs-header">Typst</div>
+          <div class="cs-group">
+            <div class="cs-label">Headings</div>
+            <div class="cs-row"><code class="cs-typst cs-h1">= </code><span>Heading 1</span></div>
+            <div class="cs-row"><code class="cs-typst cs-h2">== </code><span>Heading 2</span></div>
+            <div class="cs-row"><code class="cs-typst cs-h3">=== </code><span>Heading 3</span></div>
+          </div>
+          <div class="cs-group">
+            <div class="cs-label">Emphasis</div>
+            <div class="cs-row"><code class="cs-typst">*text*</code><span>bold</span></div>
+            <div class="cs-row"><code class="cs-typst">_text_</code><span>italic</span></div>
+          </div>
+          <div class="cs-group">
+            <div class="cs-label">Lists</div>
+            <div class="cs-row"><code class="cs-typst">- item</code><span>bullet</span></div>
+            <div class="cs-row"><code class="cs-typst">+ item</code><span>numbered</span></div>
+          </div>
+          <div class="cs-group">
+            <div class="cs-label">Inline</div>
+            <div class="cs-row"><code class="cs-typst">`code`</code><span>inline code</span></div>
+            <div class="cs-row"><code class="cs-typst">$x^2$</code><span>math</span></div>
+            <div class="cs-row"><code class="cs-typst">// ...</code><span>comment</span></div>
+          </div>
+          <div class="cs-group">
+            <div class="cs-label">Links</div>
+            <div class="cs-row cs-row--wrap"><code class="cs-typst">#link("url")[text]</code></div>
+          </div>
+          <div class="cs-group">
+            <div class="cs-label">Keys</div>
+            <div class="cs-row"><kbd>Enter</kbd><span>new line</span></div>
+            <div class="cs-row"><kbd>Tab</kbd><span>indent</span></div>
+            <div class="cs-row"><kbd>↑ ↓</kbd><span>move lines</span></div>
+          </div>
+          <p class="cs-tip">Plain text always works — Typst is optional.</p>
+        </aside>
+
+      </div>
+    </section>
+
+    <!-- Reflection -->
+    <section id="reflection" class="view">
+      <div class="section-toolbar">
+        <div>
+          <h2 class="section-title">Reflection</h2>
+          <p class="section-sub">Generated from chat + journal. Tracks who you're becoming.</p>
+        </div>
+        <button id="generate-reflection" class="action">
+          <i data-lucide="sparkles"></i> Generate
+        </button>
+      </div>
+      <div id="rfl-charts">
+        <div class="rfl-charts-row">
+            <div class="rfl-chart-panel">
+            <div class="rfl-chart-title">Current State</div>
+            <div id="radar-chart-wrap"><canvas id="radar-chart"></canvas></div>
+          </div>
+          <div class="rfl-chart-panel">
+            <div class="rfl-chart-title">Progress Over Time</div>
+            <div id="trend-chart-wrap"><canvas id="trend-chart"></canvas></div>
+          </div>
+        </div>
+        <div id="rfl-scores-row"></div>
+      </div>
+      <div id="reflection-list"></div>
+    </section>
+
+    <!-- Tasks -->
+    <section id="tasks" class="view">
+      <form id="task-form" class="task-add-form">
+        <div class="task-form-row">
+          <input id="task-title" placeholder="What are you committing to or acting on?" required />
+          <div class="task-type-toggle">
+            <button type="button" class="tt-btn active" data-type="task">Action</button>
+            <button type="button" class="tt-btn" data-type="goal">Commitment</button>
+          </div>
+          <button type="submit" class="task-add-btn">Add</button>
+        </div>
+        <div class="task-form-row" id="task-extra">
+          <div id="task-opts">
+            <input id="task-deadline" type="datetime-local" title="Deadline (optional)" />
+            <button type="button" id="task-whatsapp-toggle" class="icon-btn wa-toggle" title="WhatsApp notification">
+              <i data-lucide="phone-off"></i>
+            </button>
+          </div>
+          <div id="goal-opts" style="display:none">
+            <select id="goal-horizon">
+              <option value="month">This month</option>
+              <option value="quarter">This quarter (3 months)</option>
+              <option value="year" selected>This year</option>
+              <option value="life">Long-term / Life</option>
+            </select>
+          </div>
+          <input id="task-notes" placeholder="Notes (optional)" />
+        </div>
+      </form>
+      <div id="task-list"></div>
+    </section>
+
+    </div><!-- /main-content -->
+  </div><!-- /app -->
+
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <script src="/app.js"></script>
+  <script defer src="/journal.js"></script>
+</body>
+</html>

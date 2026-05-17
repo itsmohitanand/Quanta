@@ -1,0 +1,303 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* ── File references ──────────────────────────────────────────────────────── */
+		AA000100 /* QuantaApp.swift */ = {
+			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
+			path = QuantaApp.swift; sourceTree = "<group>";
+		};
+		AA000101 /* ContentView.swift */ = {
+			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
+			path = ContentView.swift; sourceTree = "<group>";
+		};
+		AA000102 /* QuantaWebView.swift */ = {
+			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
+			path = QuantaWebView.swift; sourceTree = "<group>";
+		};
+		AA000103 /* Config.swift */ = {
+			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
+			path = Config.swift; sourceTree = "<group>";
+		};
+		AA000104 /* LoadingView.swift */ = {
+			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
+			path = LoadingView.swift; sourceTree = "<group>";
+		};
+		AA000105 /* OfflineView.swift */ = {
+			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
+			path = OfflineView.swift; sourceTree = "<group>";
+		};
+		AA000106 /* Extensions.swift */ = {
+			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
+			path = Extensions.swift; sourceTree = "<group>";
+		};
+		AA000110 /* Assets.xcassets */ = {
+			isa = PBXFileReference; lastKnownFileType = folder.assetcatalog;
+			path = Assets.xcassets; sourceTree = "<group>";
+		};
+		AA000700 /* Quanta-iOS.app */ = {
+			isa = PBXFileReference; explicitFileType = wrapper.application;
+			includeInIndex = 0; path = "Quanta.app"; sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		AA000710 /* Quanta-macOS.app */ = {
+			isa = PBXFileReference; explicitFileType = wrapper.application;
+			includeInIndex = 0; path = "Quanta.app"; sourceTree = BUILT_PRODUCTS_DIR;
+		};
+
+/* ── Build files (iOS) ───────────────────────────────────────────────────── */
+		AA000200 /* QuantaApp.swift in Sources */    = { isa = PBXBuildFile; fileRef = AA000100; };
+		AA000201 /* ContentView.swift in Sources */  = { isa = PBXBuildFile; fileRef = AA000101; };
+		AA000202 /* QuantaWebView.swift in Sources */= { isa = PBXBuildFile; fileRef = AA000102; };
+		AA000203 /* Config.swift in Sources */       = { isa = PBXBuildFile; fileRef = AA000103; };
+		AA000204 /* LoadingView.swift in Sources */  = { isa = PBXBuildFile; fileRef = AA000104; };
+		AA000205 /* OfflineView.swift in Sources */  = { isa = PBXBuildFile; fileRef = AA000105; };
+		AA000206 /* Extensions.swift in Sources */   = { isa = PBXBuildFile; fileRef = AA000106; };
+		AA000207 /* Assets.xcassets in Resources */  = { isa = PBXBuildFile; fileRef = AA000110; };
+
+/* ── Build files (macOS) ─────────────────────────────────────────────────── */
+		AA000210 /* QuantaApp.swift in Sources */    = { isa = PBXBuildFile; fileRef = AA000100; };
+		AA000211 /* ContentView.swift in Sources */  = { isa = PBXBuildFile; fileRef = AA000101; };
+		AA000212 /* QuantaWebView.swift in Sources */= { isa = PBXBuildFile; fileRef = AA000102; };
+		AA000213 /* Config.swift in Sources */       = { isa = PBXBuildFile; fileRef = AA000103; };
+		AA000214 /* LoadingView.swift in Sources */  = { isa = PBXBuildFile; fileRef = AA000104; };
+		AA000215 /* OfflineView.swift in Sources */  = { isa = PBXBuildFile; fileRef = AA000105; };
+		AA000216 /* Extensions.swift in Sources */   = { isa = PBXBuildFile; fileRef = AA000106; };
+		AA000217 /* Assets.xcassets in Resources */  = { isa = PBXBuildFile; fileRef = AA000110; };
+
+/* ── Groups ──────────────────────────────────────────────────────────────── */
+		AA000300 /* Quanta */ = {
+			isa = PBXGroup;
+			children = (
+				AA000302 /* Sources */,
+				AA000110 /* Assets.xcassets */,
+				AA000301 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AA000301 /* Products */ = {
+			isa = PBXGroup;
+			children = ( AA000700, AA000710 );
+			name = Products; sourceTree = "<group>";
+		};
+		AA000302 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				AA000100, AA000101, AA000102,
+				AA000103, AA000104, AA000105, AA000106,
+			);
+			path = Sources; sourceTree = "<group>";
+		};
+
+/* ── Build phases ─────────────────────────────────────────────────────────── */
+		AA000400 /* iOS Sources */ = {
+			isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; runOnlyForDeploymentPostprocessing = 0;
+			files = ( AA000200, AA000201, AA000202, AA000203, AA000204, AA000205, AA000206 );
+		};
+		AA000401 /* iOS Resources */ = {
+			isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; runOnlyForDeploymentPostprocessing = 0;
+			files = ( AA000207 );
+		};
+		AA000402 /* iOS Frameworks */ = {
+			isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; runOnlyForDeploymentPostprocessing = 0;
+			files = ();
+		};
+		AA000410 /* macOS Sources */ = {
+			isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; runOnlyForDeploymentPostprocessing = 0;
+			files = ( AA000210, AA000211, AA000212, AA000213, AA000214, AA000215, AA000216 );
+		};
+		AA000411 /* macOS Resources */ = {
+			isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; runOnlyForDeploymentPostprocessing = 0;
+			files = ( AA000217 );
+		};
+		AA000412 /* macOS Frameworks */ = {
+			isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; runOnlyForDeploymentPostprocessing = 0;
+			files = ();
+		};
+
+/* ── Targets ──────────────────────────────────────────────────────────────── */
+		AA000010 /* Quanta-iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA000610;
+			buildPhases = ( AA000400, AA000401, AA000402 );
+			buildRules = ();
+			dependencies = ();
+			name = "Quanta-iOS";
+			productName = Quanta;
+			productReference = AA000700;
+			productType = "com.apple.product-type.application";
+		};
+		AA000020 /* Quanta-macOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA000620;
+			buildPhases = ( AA000410, AA000411, AA000412 );
+			buildRules = ();
+			dependencies = ();
+			name = "Quanta-macOS";
+			productName = Quanta;
+			productReference = AA000710;
+			productType = "com.apple.product-type.application";
+		};
+
+/* ── Project ──────────────────────────────────────────────────────────────── */
+		AA000001 /* Project */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1540;
+				LastUpgradeCheck = 1540;
+			};
+			buildConfigurationList = AA000600;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = ( en, Base );
+			mainGroup = AA000300;
+			productRefGroup = AA000301;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = ( AA000010, AA000020 );
+		};
+
+/* ── Build configurations ─────────────────────────────────────────────────── */
+		AA000500 /* Project Debug */ = {
+			isa = XCBuildConfiguration; name = Debug;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+		};
+		AA000501 /* Project Release */ = {
+			isa = XCBuildConfiguration; name = Release;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+		};
+		AA000510 /* iOS Debug */ = {
+			isa = XCBuildConfiguration; name = Debug;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity = "<dict><key>NSAllowsArbitraryLoads</key><true/></dict>";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.itsmohitanand.quanta";
+				PRODUCT_NAME = Quanta;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+		};
+		AA000511 /* iOS Release */ = {
+			isa = XCBuildConfiguration; name = Release;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity = "<dict><key>NSAllowsArbitraryLoads</key><true/></dict>";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.itsmohitanand.quanta";
+				PRODUCT_NAME = Quanta;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+		};
+		AA000520 /* macOS Debug */ = {
+			isa = XCBuildConfiguration; name = Debug;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Quanta/Quanta.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity = "<dict><key>NSAllowsArbitraryLoads</key><true/></dict>";
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.itsmohitanand.quanta-mac";
+				PRODUCT_NAME = Quanta;
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.9;
+			};
+		};
+		AA000521 /* macOS Release */ = {
+			isa = XCBuildConfiguration; name = Release;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Quanta/Quanta.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity = "<dict><key>NSAllowsArbitraryLoads</key><true/></dict>";
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.itsmohitanand.quanta-mac";
+				PRODUCT_NAME = Quanta;
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.9;
+			};
+		};
+
+/* ── Config lists ─────────────────────────────────────────────────────────── */
+		AA000600 /* Project */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = ( AA000500, AA000501 );
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA000610 /* Quanta-iOS */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = ( AA000510, AA000511 );
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA000620 /* Quanta-macOS */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = ( AA000520, AA000521 );
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+
+	};
+	rootObject = AA000001 /* Project */;
+}

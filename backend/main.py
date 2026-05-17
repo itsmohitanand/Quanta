@@ -1,0 +1,36 @@
+import asyncio
+from pathlib import Path
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
+from .database import init_db
+from .notifications import notification_loop
+from .routers import auth, chat, journal, notes, reflection, settings, tasks
+
+app = FastAPI(title="Quanta")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("startup")
+async def startup():
+    init_db()
+    asyncio.create_task(notification_loop())
+
+
+app.include_router(auth.router,        prefix="/api")
+app.include_router(chat.router,        prefix="/api")
+app.include_router(journal.router,     prefix="/api")
+app.include_router(reflection.router,  prefix="/api")
+app.include_router(tasks.router,       prefix="/api")
+app.include_router(notes.router,       prefix="/api")
+app.include_router(settings.router,    prefix="/api")
+
+webapp = Path(__file__).parent.parent / "webapp"
+app.mount("/", StaticFiles(directory=str(webapp), html=True), name="webapp")
