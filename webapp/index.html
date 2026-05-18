@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
-  <title>Quanta</title>
+  <title>Engram</title>
   <link rel="manifest" href="/manifest.json" />
   <link rel="icon" type="image/svg+xml" href="/logo.svg" />
   <link rel="icon" type="image/png" href="/icon-192.png" sizes="192x192" />
@@ -12,11 +12,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#F5F5F7" media="(prefers-color-scheme: light)" />
   <meta name="theme-color" content="#1B1E28" media="(prefers-color-scheme: dark)" />
-  <meta name="apple-mobile-web-app-title" content="Quanta" />
+  <meta name="apple-mobile-web-app-title" content="Engram" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
   <link rel="stylesheet" href="/style.css?v=13" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/dialog/dialog.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
@@ -25,7 +27,7 @@
   <!-- Auth -->
   <div id="auth-screen">
     <div class="auth-box">
-      <div class="logo" style="font-size:26px;margin-bottom:28px;">Quanta</div>
+      <div class="logo" style="font-size:26px;margin-bottom:28px;letter-spacing:-0.5px;font-weight:700;">Engram</div>
       <form id="auth-form">
         <input id="auth-username" placeholder="Username" required autocomplete="username" />
         <input id="auth-password" type="password" placeholder="Password" required autocomplete="current-password" />
@@ -53,20 +55,16 @@
         <label>Theme</label>
         <div class="theme-switcher">
           <button type="button" class="theme-btn" data-theme="light">
-            <span class="theme-preview" style="background:#FFFFFF;border-color:#6366F1;border-width:2px"></span>
+            <span class="theme-preview" style="background:#FFFFFF;border-color:#5E5CE6;border-width:2px"></span>
             <span>Light</span>
           </button>
           <button type="button" class="theme-btn" data-theme="poimandres">
             <span class="theme-preview" style="background:#1B1E28;border-color:#5DE4C7"></span>
             <span>Poimandres</span>
           </button>
-          <button type="button" class="theme-btn" data-theme="everblush">
-            <span class="theme-preview" style="background:#232A2D;border-color:#8CCF7E"></span>
-            <span>Everblush</span>
-          </button>
         </div>
 
-        <label>Notes directory <span class="field-hint-inline">(path on the server running Quanta)</span></label>
+        <label>Notes directory <span class="field-hint-inline">(path on the server running Engram)</span></label>
         <input id="settings-notes-dir" placeholder="Leave blank to use the default path" />
         <p class="field-hint">Absolute path on the server. Leave blank to use the default shown above. Useful if you already have a notes folder (e.g. Obsidian vault, Typst notes).</p>
 
@@ -102,12 +100,15 @@
     <!-- Left sidebar -->
     <nav id="sidebar">
       <div class="sb-brand">
-        <svg class="sb-logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Quanta">
-          <rect x="3" y="3" width="94" height="94" rx="22" fill="#5DE4C7"/>
-          <circle cx="44" cy="43" r="20" stroke="#1B1E28" stroke-width="9.5"/>
-          <line x1="57" y1="57" x2="76" y2="76" stroke="#1B1E28" stroke-width="9.5" stroke-linecap="round"/>
+        <!-- Engram logo: geometric E, Neovim-spirit -->
+        <svg class="sb-logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Engram">
+          <rect width="100" height="100" rx="20" fill="#111114"/>
+          <line x1="30" y1="26" x2="30" y2="74" class="logo-e" stroke-width="9" stroke-linecap="round"/>
+          <line x1="30" y1="26" x2="70" y2="26" class="logo-e" stroke-width="9" stroke-linecap="round"/>
+          <line x1="30" y1="50" x2="60" y2="50" class="logo-e" stroke-width="9" stroke-linecap="round"/>
+          <line x1="30" y1="74" x2="70" y2="74" class="logo-e" stroke-width="9" stroke-linecap="round"/>
         </svg>
-        <span class="sb-name">Quanta</span>
+        <span class="sb-name">Engram</span>
         <button id="sidebar-collapse" class="sb-collapse" title="Collapse">
           <i data-lucide="chevrons-left"></i>
         </button>
@@ -161,6 +162,8 @@
           <span id="journal-status" class="jc-status"></span>
           <button id="journal-save" class="jc-save-btn">Save</button>
           <div class="jc-divider"></div>
+          <button id="vim-toggle" class="jc-icon-btn vim-toggle-btn" title="Toggle Vim mode (Alt+\)">VIM</button>
+          <div class="jc-divider"></div>
           <button id="files-toggle" class="jc-icon-btn" title="Files">
             <i data-lucide="panel-left"></i>
           </button>
@@ -187,7 +190,7 @@
             <i data-lucide="pencil-line"></i> Logging to journal
           </div>
           <div class="jc-input-wrap">
-          <textarea id="chat-input" placeholder="Ask Quanta…" rows="1"></textarea>
+          <textarea id="chat-input" placeholder="Ask Engram…" rows="1"></textarea>
           <button id="chat-send-btn" type="button" class="jc-send-btn">
             <i data-lucide="arrow-up"></i>
           </button>
@@ -216,6 +219,7 @@
 
         <div id="journal-editor-container">
           <div id="journal-editor" contenteditable="false" spellcheck="true"></div>
+          <div id="vim-mode-indicator" class="vim-indicator" style="display:none">-- NORMAL --</div>
         </div>
 
         <aside id="journal-sidebar">
@@ -409,6 +413,11 @@
     <p class="cs-tip">Plain text works too — Typst is optional.</p>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/keymap/vim.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/dialog/dialog.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/search/searchcursor.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
   <script src="/app.js?v=10"></script>
   <script defer src="/journal.js?v=10"></script>
 </body>

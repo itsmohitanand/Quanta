@@ -1,7 +1,7 @@
 {
-  "name": "Quanta",
-  "short_name": "Quanta",
-  "description": "Your life organiser and second brain",
+  "name": "Engram",
+  "short_name": "Engram",
+  "description": "Your second brain and life organiser",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",

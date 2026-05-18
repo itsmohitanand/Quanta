@@ -249,7 +249,7 @@ const TOOL_LABELS = {
 function appendToolCard(name, args, result) {
   const meta = TOOL_LABELS[name] || { icon: "🔧", label: name };
   const el = document.createElement("div");
-  el.className = "tool-card";
+  el.className = `tool-card tool-${name.replace(/_/g, '-')}`;
 
   if (name === "web_search") {
     // Richer card for search results
@@ -1333,11 +1333,12 @@ document.addEventListener("DOMContentLoaded", () => refreshIcons());
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
 function applyTheme(name) {
-  document.documentElement.dataset.theme = name || "dark";
-  document.querySelectorAll(".theme-btn").forEach(b => {
-    b.classList.toggle("active", b.dataset.theme === (name || "dark"));
-  });
-  localStorage.setItem("theme", name || "dark");
+  const theme = name || "tokyonight";
+  document.documentElement.dataset.theme = theme;
+  document.querySelectorAll(".theme-btn").forEach(b =>
+    b.classList.toggle("active", b.dataset.theme === theme)
+  );
+  localStorage.setItem("theme", theme);
 }
 
 document.querySelectorAll(".theme-btn").forEach(btn => {

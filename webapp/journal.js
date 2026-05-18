@@ -6,10 +6,15 @@ function authHeaders() {
   return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 }
 
-let currentDate  = todayStr();
-let currentPath  = null;
-let notesRoot    = "";
-let activeBlock  = null;   // the .jl div currently being edited
+let currentDate      = todayStr();
+let currentPath      = null;
+let notesRoot        = "";
+let activeBlock      = null;   // the .jl div currently being edited
+let lastSavedContent = null;   // null = nothing loaded yet
+let autosaveTimer    = null;
+let isSaving         = false;
+let cmEditor         = null;   // CodeMirror instance when Vim mode is on
+let vimModeEnabled   = localStorage.getItem("journalVim") === "1";
 
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 
@@ -58,10 +63,11 @@ function makeBlock(rawText) {
   div.dataset.raw = rawText;
   renderBlock(div);
 
-  div.addEventListener("focus", () => activateBlock(div));
-  div.addEventListener("blur",  () => deactivateBlock(div));
+  div.addEventListener("focus",   () => activateBlock(div));
+  div.addEventListener("blur",    () => deactivateBlock(div));
   div.addEventListener("keydown", blockKeydown);
-  div.addEventListener("paste", blockPaste);
+  div.addEventListener("paste",   blockPaste);
+  div.addEventListener("input",   scheduleAutosave);
   return div;
 }
 
@@ -126,6 +132,7 @@ function blockKeydown(e) {
     div.blur();
     newBlock.contentEditable = "true";
     newBlock.focus();
+    scheduleAutosave();
     return;
   }
 
@@ -134,6 +141,7 @@ function blockKeydown(e) {
     const prev = div.previousElementSibling;
     div.remove();
     if (prev) { prev.contentEditable = "true"; prev.focus(); moveCursorToEnd(prev); }
+    scheduleAutosave();
     return;
   }
 
@@ -182,6 +190,7 @@ function blockPaste(e) {
 // ── Editor container click — activate block under cursor ─────────────────────
 
 function editorClick(e) {
+  if (cmEditor) return; // Vim mode handles its own clicks
   const block = e.target.closest(".jl");
   if (block) {
     activateBlock(block);
@@ -198,6 +207,11 @@ function editorClick(e) {
 // ── Load / Save ───────────────────────────────────────────────────────────────
 
 function setContent(text) {
+  if (cmEditor) {
+    cmEditor.setValue(text);
+    cmEditor.clearHistory();
+    return;
+  }
   const editor = document.getElementById("journal-editor");
   editor.innerHTML = "";
   activeBlock = null;
@@ -206,26 +220,76 @@ function setContent(text) {
 }
 
 function getContent() {
+  if (cmEditor) return cmEditor.getValue();
   if (activeBlock) activeBlock.dataset.raw = activeBlock.textContent;
   return [...document.querySelectorAll(".jl")]
     .map(div => div.dataset.raw || "")
     .join("\n");
 }
 
+// ── Autosave ──────────────────────────────────────────────────────────────────
+
+function setJournalStatus(text, type) {
+  const el = document.getElementById("journal-status");
+  el.textContent = text;
+  el.dataset.state = type || "";
+}
+
+function scheduleAutosave() {
+  if (autosaveTimer) clearTimeout(autosaveTimer);
+  setJournalStatus("● Unsaved", "dirty");
+  autosaveTimer = setTimeout(autosave, 2000);
+}
+
+async function autosave() {
+  autosaveTimer = null;
+  if (isSaving || lastSavedContent === null) return;
+  const content = getContent();
+  if (content === lastSavedContent) return;
+
+  setJournalStatus("Saving…", "saving");
+  isSaving = true;
+
+  try {
+    const res = currentPath
+      ? await fetch(`/api/journal/write?path=${encodeURIComponent(currentPath)}`, {
+          method: "POST", headers: authHeaders(), body: JSON.stringify({ content }),
+        })
+      : await fetch(`/api/journal/${currentDate}`, {
+          method: "POST", headers: authHeaders(), body: JSON.stringify({ content }),
+        });
+
+    if (res.ok) {
+      lastSavedContent = content;
+      setJournalStatus("✓ Saved", "saved");
+    } else {
+      setJournalStatus("⚠ Save failed", "error");
+    }
+  } catch (_) {
+    setJournalStatus("⚠ Offline", "error");
+  } finally {
+    isSaving = false;
+  }
+}
+
 async function loadByDate(date) {
   const res = await fetch(`/api/journal/${date}`, { headers: authHeaders() });
-  if (res.status === 404) { setContent(""); return; }
+  if (res.status === 404) { setContent(""); lastSavedContent = ""; setJournalStatus("✓ Saved", "saved"); return; }
   if (!res.ok) { const d = await res.json(); setContent(`// ${d.detail}`); return; }
   const { content } = await res.json();
   setContent(content);
+  lastSavedContent = content;
+  setJournalStatus("✓ Saved", "saved");
 }
 
 async function loadByPath(path) {
   const res = await fetch(`/api/journal/read?path=${encodeURIComponent(path)}`, { headers: authHeaders() });
-  if (res.status === 404) { setContent(""); return; }
+  if (res.status === 404) { setContent(""); lastSavedContent = ""; setJournalStatus("✓ Saved", "saved"); return; }
   if (!res.ok) { const d = await res.json(); setContent(`// ${d.detail}`); return; }
   const { content } = await res.json();
   setContent(content);
+  lastSavedContent = content;
+  setJournalStatus("✓ Saved", "saved");
 }
 
 function updateSaveBtn() {
@@ -234,6 +298,8 @@ function updateSaveBtn() {
 }
 
 async function saveJournal() {
+  if (autosaveTimer) { clearTimeout(autosaveTimer); autosaveTimer = null; }
+
   const content  = getContent();
   const btn      = document.getElementById("journal-save");
   const statusEl = document.getElementById("journal-status");
@@ -241,7 +307,8 @@ async function saveJournal() {
   statusEl.textContent = "";
 
   const isDaily = !currentPath || currentPath.startsWith("daily/");
-  btn.textContent = "Saving...";
+  btn.textContent = "Saving…";
+  isSaving = true;
 
   const saveRes = currentPath
     ? await fetch(`/api/journal/write?path=${encodeURIComponent(currentPath)}`, {
@@ -254,18 +321,19 @@ async function saveJournal() {
   if (!saveRes.ok) {
     const d = await saveRes.json();
     statusEl.textContent = d.detail || "Save failed";
-    btn.disabled = false; updateSaveBtn(); return;
+    btn.disabled = false; isSaving = false; updateSaveBtn(); return;
   }
 
+  lastSavedContent = content;
+
   if (isDaily) {
-    btn.textContent = "Extracting...";
+    btn.textContent = "Extracting…";
     const ext = await fetch(`/api/journal/${currentDate}/extract`, { method: "POST", headers: authHeaders() });
     if (ext.ok) {
       const d = await ext.json();
       const parts = [];
-      if (d.goals_added)  parts.push(`${d.goals_added} goal(s)`);
-      if (d.habits_added) parts.push(`${d.habits_added} habit(s)`);
-      if (d.notes_added)  parts.push(`${d.notes_added} note(s)`);
+      if (d.commitments_added) parts.push(`${d.commitments_added} aim(s)`);
+      if (d.notes_added)       parts.push(`${d.notes_added} note(s)`);
       statusEl.textContent = parts.length ? `Added: ${parts.join(", ")}` : "Saved.";
     } else { statusEl.textContent = "Saved (extraction failed)"; }
   } else {
@@ -273,8 +341,9 @@ async function saveJournal() {
     loadFileTree();
   }
 
-  btn.disabled = false; updateSaveBtn();
-  setTimeout(() => { statusEl.textContent = ""; }, 4000);
+  lastSavedContent = content;
+  btn.disabled = false; isSaving = false; updateSaveBtn();
+  setJournalStatus("✓ Saved", "saved");
 }
 
 // ── File tree ─────────────────────────────────────────────────────────────────
@@ -367,6 +436,84 @@ function showInlineInput(placeholder, onConfirm) {
   input.addEventListener("keydown", e => { if (e.key === "Enter") confirm(); if (e.key === "Escape") abort(); });
 }
 
+// ── Vim mode ──────────────────────────────────────────────────────────────────
+
+function ensureVimCommands() {
+  if (!window.CodeMirror?.Vim || window.__vimCmdsRegistered) return;
+  window.__vimCmdsRegistered = true;
+  CodeMirror.Vim.defineEx("write", "w",  () => saveJournal());
+  CodeMirror.Vim.defineEx("wq",    "wq", () => saveJournal());
+}
+
+function initVimEditor() {
+  if (!window.CodeMirror) {
+    alert("CodeMirror failed to load — check your internet connection.");
+    return;
+  }
+  ensureVimCommands();
+
+  const content  = getContent();          // capture from block editor
+  const editorEl = document.getElementById("journal-editor");
+  editorEl.innerHTML = "";
+  editorEl.classList.add("vim-active");
+  activeBlock = null;
+
+  const ta = document.createElement("textarea");
+  editorEl.appendChild(ta);
+
+  cmEditor = CodeMirror.fromTextArea(ta, {
+    keyMap:          "vim",
+    lineNumbers:     false,
+    lineWrapping:    true,
+    autofocus:       true,
+    styleActiveLine: true,
+    extraKeys:       { "Ctrl-S": () => saveJournal() },
+  });
+
+  cmEditor.setValue(content);
+  cmEditor.clearHistory();
+  cmEditor.setCursor(0, 0);
+  cmEditor.scrollTo(0, 0);
+
+  cmEditor.on("change", scheduleAutosave);
+  cmEditor.on("vim-mode-change", info => {
+    const ind = document.getElementById("vim-mode-indicator");
+    if (!ind) return;
+    ind.textContent  = `-- ${info.mode.toUpperCase()} --`;
+    ind.dataset.mode = info.mode;
+  });
+
+  const ind = document.getElementById("vim-mode-indicator");
+  if (ind) {
+    ind.textContent  = "-- NORMAL --";
+    ind.dataset.mode = "normal";
+    ind.style.display = "";
+  }
+}
+
+function destroyVimEditor() {
+  if (!cmEditor) return;
+  const content = cmEditor.getValue();
+  cmEditor.toTextArea();
+  cmEditor = null;
+
+  const editorEl = document.getElementById("journal-editor");
+  editorEl.classList.remove("vim-active");
+
+  const ind = document.getElementById("vim-mode-indicator");
+  if (ind) ind.style.display = "none";
+
+  setContent(content);   // restore block editor with same content
+}
+
+function toggleVimMode() {
+  vimModeEnabled = !vimModeEnabled;
+  localStorage.setItem("journalVim", vimModeEnabled ? "1" : "0");
+  document.getElementById("vim-toggle")?.classList.toggle("active", vimModeEnabled);
+  if (vimModeEnabled) initVimEditor();
+  else destroyVimEditor();
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 function initJournal() {
@@ -406,7 +553,7 @@ function initJournal() {
       const parts = value.includes("/") ? value.split("/") : [def, value];
       const [folder, ...rest] = parts;
       currentPath = `${folder}/${rest.join("/").replace(/\.(typ|md|txt)$/, "")}.typ`;
-      setActiveFile(null); setContent(""); updateSaveBtn();
+      setActiveFile(null); setContent(""); lastSavedContent = ""; updateSaveBtn();
     });
   });
 
@@ -417,8 +564,22 @@ function initJournal() {
     });
   });
 
+  document.getElementById("vim-toggle")?.addEventListener("click", toggleVimMode);
+  if (vimModeEnabled) {
+    document.getElementById("vim-toggle")?.classList.add("active");
+  }
+
+  // Alt+\ — toggle Vim mode from anywhere in the app
+  document.addEventListener("keydown", e => {
+    if (e.altKey && (e.key === "\\" || e.code === "Backslash")) {
+      e.preventDefault();
+      toggleVimMode();
+    }
+  });
+
   loadFileTree();
   setContent("");
+  if (vimModeEnabled) initVimEditor();
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
