@@ -16,7 +16,7 @@
   <meta name="theme-color" content="#1B1E28" media="(prefers-color-scheme: dark)" />
   <meta name="apple-mobile-web-app-title" content="Engram" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
-  <link rel="stylesheet" href="/style.css?v=13" />
+  <link rel="stylesheet" href="/style.css?v=14" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/dialog/dialog.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
@@ -186,10 +186,29 @@
       <!-- Chat pane -->
       <div id="chat-pane" style="display:none; flex:1; flex-direction:column; min-height:0;">
         <div id="messages"></div>
-<div id="chat-cmd-hint" class="chat-cmd-hint" style="display:none;">
-            <i data-lucide="pencil-line"></i> Logging to journal
+
+        <!-- Voice panel — slides up over the input when mic is active -->
+        <div id="voice-panel" class="voice-panel" style="display:none">
+          <div class="vp-inner">
+            <!-- Equalizer bars (listening state) -->
+            <div class="vp-bars" id="vp-bars">
+              <span></span><span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span><span></span>
+              <span></span><span></span>
+            </div>
+            <!-- Flowing orb (thinking state) -->
+            <div class="vp-orb" id="vp-orb" style="display:none"></div>
+            <div class="vp-label" id="vp-label">Listening…</div>
           </div>
-          <div class="jc-input-wrap">
+        </div>
+
+        <div id="chat-cmd-hint" class="chat-cmd-hint" style="display:none;">
+          <i data-lucide="pencil-line"></i> Logging to journal
+        </div>
+        <div class="jc-input-wrap">
+          <button id="voice-btn" type="button" class="jc-voice-btn" title="Voice input" style="display:none">
+            <i data-lucide="mic"></i>
+          </button>
           <textarea id="chat-input" placeholder="Ask Engram…" rows="1"></textarea>
           <button id="chat-send-btn" type="button" class="jc-send-btn">
             <i data-lucide="arrow-up"></i>

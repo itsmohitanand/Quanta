@@ -38,7 +38,7 @@ async function showApp() {
   await loadHistory();
   loadReflections();
   loadTasks();
-  switchTab("journal");
+  switchTab(localStorage.getItem("lastTab") || "journal");
   setJournalMode("write");
   switchBuildView(localStorage.getItem("buildView") || "now");
 }
@@ -356,6 +356,7 @@ async function sendChat() {
           if (data.tool === "create_item")   loadTasks();
           if (data.tool === "schedule_item") { loadTasks(); loadSchedule(); }
         } else if (data.token) {
+          if (window.__voiceOnToken) window.__voiceOnToken(data.token);
           if (botEl.classList.contains("typing")) {
             botEl.classList.remove("typing");
             botEl.textContent = "";
@@ -1861,6 +1862,139 @@ const _origSwitchBuild = switchBuildView;
 
 // Apply on load — Light is default
 applyTheme(localStorage.getItem("theme") || "light");
+
+// ── Voice input — Web Speech API (press-and-hold) ────────────────────────────────────────────────
+
+(function initVoice() {
+  const voiceBtn = document.getElementById("voice-btn");
+  const panel    = document.getElementById("voice-panel");
+  const vpBars   = document.getElementById("vp-bars");
+  const vpOrb    = document.getElementById("vp-orb");
+  const vpLabel  = document.getElementById("vp-label");
+
+  if (!voiceBtn) return;
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return;
+
+  voiceBtn.style.display = "flex";
+  refreshIcons(voiceBtn);
+
+  const HOLD_MS  = 250;
+  let recog      = null;
+  let holding    = false;
+  let started    = false;
+  let holdTimer  = null;
+  let transcript = "";
+
+  function showPanel(label) {
+    panel.style.display = "flex";
+    requestAnimationFrame(() => panel.classList.add("visible"));
+    vpBars.style.display = "flex";
+    vpOrb.style.display  = "none";
+    vpLabel.textContent  = label || "Listening…";
+    voiceBtn.classList.add("vb-listening");
+  }
+
+  function hidePanel() {
+    panel.classList.remove("visible");
+    setTimeout(() => { if (!panel.classList.contains("visible")) panel.style.display = "none"; }, 350);
+    voiceBtn.classList.remove("vb-listening", "vb-thinking");
+  }
+
+  function showHint() {
+    panel.style.display = "flex";
+    requestAnimationFrame(() => panel.classList.add("visible"));
+    vpBars.style.display = "none";
+    vpOrb.style.display  = "none";
+    vpLabel.textContent  = "Press & hold to speak";
+    voiceBtn.classList.add("vb-hint");
+    setTimeout(() => {
+      voiceBtn.classList.remove("vb-hint");
+      hidePanel();
+    }, 1500);
+  }
+
+  function applyShortcuts(t) {
+    const s = t.trim(), low = s.toLowerCase();
+    if (low.startsWith("log "))  return "@log "  + s.slice(4).trim();
+    if (low.startsWith("task ")) return "@task " + s.slice(5).trim();
+    if (low.startsWith("aim "))  return "@aim "  + s.slice(4).trim();
+    return s;
+  }
+
+  function startListening() {
+    started    = true;
+    transcript = "";
+
+    recog = new SR();
+    recog.continuous     = true;
+    recog.interimResults = true;
+    recog.lang           = navigator.language || "en-US";
+
+    recog.onresult = (e) => {
+      transcript = Array.from(e.results).map(r => r[0].transcript).join("");
+      vpLabel.textContent = transcript || "Listening…";
+    };
+
+    recog.onerror = (e) => {
+      if (e.error !== "aborted") console.warn("[Voice]", e.error);
+      hidePanel();
+      started = false;
+    };
+
+    recog.onend = () => {
+      if (!holding) {
+        const text = applyShortcuts(transcript.trim());
+        if (text) {
+          setJournalMode("chat");
+          const input = document.getElementById("chat-input");
+          input.value = text;
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          sendChat();
+        }
+        hidePanel();
+        started = false;
+      }
+    };
+
+    try {
+      recog.start();
+      showPanel("Listening…");
+    } catch (_) {
+      hidePanel();
+      started = false;
+    }
+  }
+
+  function onPress(e) {
+    e.preventDefault();
+    if (holding) return;
+    holding   = true;
+    holdTimer = setTimeout(() => { if (holding) startListening(); }, HOLD_MS);
+  }
+
+  function onRelease() {
+    clearTimeout(holdTimer);
+    const wasStarted = started;
+    holding = false;
+    if (!wasStarted) {
+      showHint();
+    } else {
+      recog?.stop();
+    }
+  }
+
+  voiceBtn.addEventListener("mousedown",  onPress,   { passive: false });
+  voiceBtn.addEventListener("touchstart", onPress,   { passive: false });
+  document.addEventListener("mouseup",    onRelease);
+  document.addEventListener("touchend",   onRelease);
+
+  window.__voiceOnToken = () => hidePanel();
+})();
+
+
+
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 

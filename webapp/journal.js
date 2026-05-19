@@ -540,6 +540,35 @@ function initJournal() {
 
   document.getElementById("filetree-refresh").addEventListener("click", loadFileTree);
 
+  // Swipe left → close file tree; swipe right from left edge → open
+  // Uses touchmove so iOS Safari scroll-capture can't swallow touchend
+  const filesEl = document.getElementById("journal-files");
+  const journalSection = document.getElementById("journal");
+  let swipeStartX = 0, swipeStartY = 0, swipeHandled = false;
+
+  document.addEventListener("touchstart", e => {
+    swipeStartX  = e.touches[0].clientX;
+    swipeStartY  = e.touches[0].clientY;
+    swipeHandled = false;
+  }, { passive: true });
+
+  document.addEventListener("touchmove", e => {
+    if (swipeHandled) return;
+    if (!journalSection.classList.contains("active")) return;
+    const dx = e.touches[0].clientX - swipeStartX;
+    const dy = e.touches[0].clientY - swipeStartY;
+    if (Math.abs(dx) < 12) return;              // wait for clear horizontal intent
+    if (Math.abs(dy) > Math.abs(dx) * 0.8) return; // too vertical
+    swipeHandled = true;
+    if (dx < -40 && !filesEl.classList.contains("hidden")) {
+      filesEl.classList.add("hidden");
+    } else if (dx > 40 && swipeStartX < 80 && filesEl.classList.contains("hidden")) {
+      filesEl.classList.remove("hidden");
+    }
+  }, { passive: true });
+
+  document.addEventListener("touchcancel", () => { swipeHandled = false; }, { passive: true });
+
   document.querySelector('[data-tab="journal"]').addEventListener("click", () => {
     loadFileTree();
     if (currentPath) loadByPath(currentPath);
