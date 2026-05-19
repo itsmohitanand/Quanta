@@ -14,7 +14,7 @@ let lastSavedContent = null;   // null = nothing loaded yet
 let autosaveTimer    = null;
 let isSaving         = false;
 let cmEditor         = null;   // CodeMirror instance when Vim mode is on
-let vimModeEnabled   = localStorage.getItem("journalVim") === "1";
+let vimModeEnabled   = localStorage.getItem("journalVim") === "1" && window.innerWidth > 900;
 
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 
@@ -534,15 +534,29 @@ function initJournal() {
     document.getElementById("journal-sidebar").classList.toggle("hidden");
   });
 
+  const filesEl = document.getElementById("journal-files");
+
+  function isMobile() { return window.innerWidth <= 900; }
+
+  function isTreeVisible() {
+    return isMobile() ? filesEl.classList.contains("visible") : !filesEl.classList.contains("hidden");
+  }
+  function showTree() {
+    if (isMobile()) filesEl.classList.add("visible");
+    else filesEl.classList.remove("hidden");
+  }
+  function hideTree() {
+    if (isMobile()) filesEl.classList.remove("visible");
+    else filesEl.classList.add("hidden");
+  }
+
   document.getElementById("files-toggle").addEventListener("click", () => {
-    document.getElementById("journal-files").classList.toggle("hidden");
+    isTreeVisible() ? hideTree() : showTree();
   });
 
   document.getElementById("filetree-refresh").addEventListener("click", loadFileTree);
 
   // Swipe left → close file tree; swipe right from left edge → open
-  // Uses touchmove so iOS Safari scroll-capture can't swallow touchend
-  const filesEl = document.getElementById("journal-files");
   const journalSection = document.getElementById("journal");
   let swipeStartX = 0, swipeStartY = 0, swipeHandled = false;
 
@@ -557,14 +571,11 @@ function initJournal() {
     if (!journalSection.classList.contains("active")) return;
     const dx = e.touches[0].clientX - swipeStartX;
     const dy = e.touches[0].clientY - swipeStartY;
-    if (Math.abs(dx) < 12) return;              // wait for clear horizontal intent
-    if (Math.abs(dy) > Math.abs(dx) * 0.8) return; // too vertical
+    if (Math.abs(dx) < 12) return;
+    if (Math.abs(dy) > Math.abs(dx) * 0.8) return;
     swipeHandled = true;
-    if (dx < -40 && !filesEl.classList.contains("hidden")) {
-      filesEl.classList.add("hidden");
-    } else if (dx > 40 && swipeStartX < 80 && filesEl.classList.contains("hidden")) {
-      filesEl.classList.remove("hidden");
-    }
+    if (dx < -40 && isTreeVisible()) hideTree();
+    else if (dx > 40 && swipeStartX < 80 && !isTreeVisible()) showTree();
   }, { passive: true });
 
   document.addEventListener("touchcancel", () => { swipeHandled = false; }, { passive: true });

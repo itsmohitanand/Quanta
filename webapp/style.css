@@ -1859,6 +1859,15 @@ input, textarea, select { font-size: 16px !important; }
   #journal-sidebar { display: none !important; }
 }
 
+@media (max-width: 900px) {
+  /* Hide non-essential topbar buttons so files-toggle stays visible */
+  #vim-toggle, #sidebar-toggle { display: none !important; }
+
+  /* File tree hidden by default on small screens — toggled via files button or swipe */
+  #journal-files { width: 0 !important; opacity: 0 !important; pointer-events: none; }
+  #journal-files.visible { width: 200px !important; opacity: 1 !important; pointer-events: auto; }
+}
+
 /* ════════════════════════════════════════════════════════════════════════════
    GLOBAL VISUAL POLISH
    ════════════════════════════════════════════════════════════════════════════ */
