@@ -443,6 +443,7 @@ function ensureVimCommands() {
   window.__vimCmdsRegistered = true;
   CodeMirror.Vim.defineEx("write", "w",  () => saveJournal());
   CodeMirror.Vim.defineEx("wq",    "wq", () => saveJournal());
+  CodeMirror.Vim.map("jk", "<Esc>", "insert");
 }
 
 function initVimEditor() {
