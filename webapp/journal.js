@@ -586,24 +586,25 @@ function initJournal() {
     if (currentPath) loadByPath(currentPath);
   });
 
-  document.getElementById("new-file-btn").addEventListener("click", () => {
-    const tree = JSON.parse(document.getElementById("filetree-body").dataset.tree || "{}");
-    const folders = Object.keys(tree);
-    const def = folders.includes("daily") ? "daily" : (folders[0] || "daily");
-    showInlineInput(`e.g. ${def}/my-note`, value => {
-      const parts = value.includes("/") ? value.split("/") : [def, value];
-      const [folder, ...rest] = parts;
-      currentPath = `${folder}/${rest.join("/").replace(/\.(typ|md|txt)$/, "")}.typ`;
-      setActiveFile(null); setContent(""); lastSavedContent = ""; updateSaveBtn();
+  document.getElementById("new-topic-btn").addEventListener("click", () => {
+    showInlineInput("Topic heading", async heading => {
+      const slug = heading.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const path = `topics/${slug}.typ`;
+      const body = `= ${heading.trim()}\n\n`;
+      await fetch(`/api/journal/write?path=${encodeURIComponent(path)}`, {
+        method: "POST", headers: authHeaders(),
+        body: JSON.stringify({ content: body }),
+      });
+      currentPath = path;
+      setActiveFile(null);
+      await loadFileTree();
+      setActiveFile(path);
+      setContent(body);
+      lastSavedContent = body;
+      updateSaveBtn();
     });
   });
 
-  document.getElementById("new-folder-btn").addEventListener("click", () => {
-    showInlineInput("folder name", async name => {
-      await fetch("/api/journal/folder", { method: "POST", headers: authHeaders(), body: JSON.stringify({ name }) });
-      loadFileTree();
-    });
-  });
 
   document.getElementById("vim-toggle")?.addEventListener("click", toggleVimMode);
   if (vimModeEnabled) {
@@ -619,7 +620,7 @@ function initJournal() {
   });
 
   loadFileTree();
-  setContent("");
+  loadByDate(currentDate);
   if (vimModeEnabled) initVimEditor();
 }
 

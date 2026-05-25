@@ -8,5 +8,5 @@ dependencies = [
     "duckduckgo-search>=8.1.1",
     "fastapi>=0.136.1",
     "httpx>=0.28.1",
-    "uvicorn>=0.47.0",
+    "uvicorn[standard]>=0.47.0",
 ]

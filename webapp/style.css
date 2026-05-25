@@ -778,8 +778,26 @@ html, body { height: 100%; height: 100dvh; background: var(--bg); color: var(--t
 }
 .filetree-action-btn:hover { color: var(--accent); border-color: var(--accent); }
 
+@property --border-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes border-spin {
+  to { --border-angle: 360deg; }
+}
+
 .filetree-inline { display: flex; gap: 3px; padding: 6px 8px; border-bottom: 1px solid var(--border); }
-.filetree-inline-input { flex: 1; background: #0a0c12; border: 1px solid var(--accent); color: var(--text); border-radius: 4px; padding: 4px 8px; font-size: 12px; min-width: 0; }
+.filetree-inline-input {
+  flex: 1; min-width: 0;
+  color: var(--text); border-radius: 6px; padding: 5px 8px; font-size: 12px;
+  border: 3px solid transparent;
+  background:
+    linear-gradient(var(--bg-editor), var(--bg-editor)) padding-box,
+    conic-gradient(from var(--border-angle), #ff0080, #ff8c00, #ffe000, #00e87a, #00cfff, #7b2fff, #ff0080) border-box;
+  animation: border-spin 2.5s linear infinite;
+}
 .filetree-inline-ok { color: var(--green); }
 .filetree-inline-cancel { color: var(--danger); }
 .filetree-inline-ok, .filetree-inline-cancel { background: none; border: none; cursor: pointer; font-size: 14px; padding: 0 4px; }
@@ -954,15 +972,26 @@ kbd {
 .score-pill-delta.flat { color: #364060; }
 
 @media (max-width: 750px) {
-  .rfl-charts-row { grid-template-columns: 1fr; }
-  #radar-chart-wrap { width: 180px; height: 180px; }
+  .rfl-charts-row { grid-template-columns: 190px 1fr; }
+  #radar-chart-wrap { width: 160px; height: 160px; }
+  #trend-chart-wrap { height: 156px; }
   #rfl-scores-row { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 680px) {
+  .rfl-charts-row { grid-template-columns: 120px 1fr; }
+  #radar-chart-wrap { width: 96px; height: 96px; }
+  #trend-chart-wrap { height: 96px; }
+  #rfl-scores-row { grid-template-columns: repeat(3, 1fr); }
+  .score-pill { padding: 7px 8px 6px; }
+  .score-pill-val { font-size: 18px; }
 }
 
 /* Outer card */
 .reflection-card {
   background: #0e1117; border: 1px solid #1c2030;
   border-radius: 14px; overflow: hidden;
+  flex-shrink: 0;
 }
 .reflection-meta {
   display: flex; justify-content: space-between; align-items: center;

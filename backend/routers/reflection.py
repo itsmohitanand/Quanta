@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
@@ -245,6 +246,28 @@ async def generate_reflection(user_id: int = Depends(get_current_user)):
             content = raw_content.split("```scores")[0].strip()
         except Exception:
             content = raw_content
+
+    # Second-pass: if model didn't produce scores, ask for them directly
+    if scores is None:
+        score_prompt = (
+            "Based on this personal reflection, return ONLY a valid JSON object with these "
+            "six integer scores (1-10, no other text, no markdown, no explanation):\n"
+            "{\"direction\":0,\"execution\":0,\"growth\":0,\"focus\":0,\"wellbeing\":0,\"resilience\":0}\n\n"
+            "Calibration: 5=average, 7=genuinely doing well, 9=exceptional. Do not inflate.\n\n"
+            f"Reflection:\n{content[:3000]}"
+        )
+        try:
+            score_raw = await chat_once([{"role": "user", "content": score_prompt}])
+            # Find the JSON object in the response
+            m = re.search(r'\{[^{}]+\}', score_raw, re.DOTALL)
+            if m:
+                scores = json.loads(m.group())
+                # Validate keys
+                expected = {"direction", "execution", "growth", "focus", "wellbeing", "resilience"}
+                if not expected.issubset(scores.keys()):
+                    scores = None
+        except Exception:
+            scores = None
 
     conn = get_db()
     conn.execute(
