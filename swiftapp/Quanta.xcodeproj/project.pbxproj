@@ -35,6 +35,42 @@
 			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
 			path = Extensions.swift; sourceTree = "<group>";
 		};
+		AA000107 /* Models.swift */ = {
+			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
+			path = Models.swift; sourceTree = "<group>";
+		};
+		AA000108 /* APIClient.swift */ = {
+			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
+			path = APIClient.swift; sourceTree = "<group>";
+		};
+		AA000109 /* AuthView.swift */ = {
+			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
+			path = AuthView.swift; sourceTree = "<group>";
+		};
+		AA00010A /* MainTabView.swift */ = {
+			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
+			path = MainTabView.swift; sourceTree = "<group>";
+		};
+		AA00010B /* ItemsView.swift */ = {
+			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
+			path = ItemsView.swift; sourceTree = "<group>";
+		};
+		AA00010C /* AddItemView.swift */ = {
+			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
+			path = AddItemView.swift; sourceTree = "<group>";
+		};
+		AA00010D /* ChatView.swift */ = {
+			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
+			path = ChatView.swift; sourceTree = "<group>";
+		};
+		AA00010E /* JournalView.swift */ = {
+			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
+			path = JournalView.swift; sourceTree = "<group>";
+		};
+		AA00010F /* FileTreeView.swift */ = {
+			isa = PBXFileReference; lastKnownFileType = sourcecode.swift;
+			path = FileTreeView.swift; sourceTree = "<group>";
+		};
 		AA000110 /* Assets.xcassets */ = {
 			isa = PBXFileReference; lastKnownFileType = folder.assetcatalog;
 			path = Assets.xcassets; sourceTree = "<group>";
@@ -57,6 +93,15 @@
 		AA000205 /* OfflineView.swift in Sources */  = { isa = PBXBuildFile; fileRef = AA000105; };
 		AA000206 /* Extensions.swift in Sources */   = { isa = PBXBuildFile; fileRef = AA000106; };
 		AA000207 /* Assets.xcassets in Resources */  = { isa = PBXBuildFile; fileRef = AA000110; };
+		AA000208 /* Models.swift in Sources */       = { isa = PBXBuildFile; fileRef = AA000107; };
+		AA000209 /* APIClient.swift in Sources */    = { isa = PBXBuildFile; fileRef = AA000108; };
+		AA00020A /* AuthView.swift in Sources */     = { isa = PBXBuildFile; fileRef = AA000109; };
+		AA00020B /* MainTabView.swift in Sources */  = { isa = PBXBuildFile; fileRef = AA00010A; };
+		AA00020C /* ItemsView.swift in Sources */    = { isa = PBXBuildFile; fileRef = AA00010B; };
+		AA00020D /* AddItemView.swift in Sources */  = { isa = PBXBuildFile; fileRef = AA00010C; };
+		AA00020E /* ChatView.swift in Sources */     = { isa = PBXBuildFile; fileRef = AA00010D; };
+		AA00020F /* JournalView.swift in Sources */  = { isa = PBXBuildFile; fileRef = AA00010E; };
+		AA000220 /* FileTreeView.swift in Sources */ = { isa = PBXBuildFile; fileRef = AA00010F; };
 
 /* ── Build files (macOS) ─────────────────────────────────────────────────── */
 		AA000210 /* QuantaApp.swift in Sources */    = { isa = PBXBuildFile; fileRef = AA000100; };
@@ -67,6 +112,15 @@
 		AA000215 /* OfflineView.swift in Sources */  = { isa = PBXBuildFile; fileRef = AA000105; };
 		AA000216 /* Extensions.swift in Sources */   = { isa = PBXBuildFile; fileRef = AA000106; };
 		AA000217 /* Assets.xcassets in Resources */  = { isa = PBXBuildFile; fileRef = AA000110; };
+		AA000218 /* Models.swift in Sources */       = { isa = PBXBuildFile; fileRef = AA000107; };
+		AA000219 /* APIClient.swift in Sources */    = { isa = PBXBuildFile; fileRef = AA000108; };
+		AA00021A /* AuthView.swift in Sources */     = { isa = PBXBuildFile; fileRef = AA000109; };
+		AA00021B /* MainTabView.swift in Sources */  = { isa = PBXBuildFile; fileRef = AA00010A; };
+		AA00021C /* ItemsView.swift in Sources */    = { isa = PBXBuildFile; fileRef = AA00010B; };
+		AA00021D /* AddItemView.swift in Sources */  = { isa = PBXBuildFile; fileRef = AA00010C; };
+		AA00021E /* ChatView.swift in Sources */     = { isa = PBXBuildFile; fileRef = AA00010D; };
+		AA00021F /* JournalView.swift in Sources */  = { isa = PBXBuildFile; fileRef = AA00010E; };
+		AA000221 /* FileTreeView.swift in Sources */ = { isa = PBXBuildFile; fileRef = AA00010F; };
 
 /* ── Groups ──────────────────────────────────────────────────────────────── */
 		AA000300 /* Quanta */ = {
@@ -76,6 +130,7 @@
 				AA000110 /* Assets.xcassets */,
 				AA000301 /* Products */,
 			);
+			path = Quanta;
 			sourceTree = "<group>";
 		};
 		AA000301 /* Products */ = {
@@ -88,6 +143,9 @@
 			children = (
 				AA000100, AA000101, AA000102,
 				AA000103, AA000104, AA000105, AA000106,
+				AA000107, AA000108, AA000109,
+				AA00010A, AA00010B, AA00010C, AA00010D,
+				AA00010E, AA00010F,
 			);
 			path = Sources; sourceTree = "<group>";
 		};
@@ -95,7 +153,9 @@
 /* ── Build phases ─────────────────────────────────────────────────────────── */
 		AA000400 /* iOS Sources */ = {
 			isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; runOnlyForDeploymentPostprocessing = 0;
-			files = ( AA000200, AA000201, AA000202, AA000203, AA000204, AA000205, AA000206 );
+			files = ( AA000200, AA000201, AA000202, AA000203, AA000204, AA000205, AA000206,
+			          AA000208, AA000209, AA00020A, AA00020B, AA00020C, AA00020D, AA00020E,
+			          AA00020F, AA000220 );
 		};
 		AA000401 /* iOS Resources */ = {
 			isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; runOnlyForDeploymentPostprocessing = 0;
@@ -107,7 +167,9 @@
 		};
 		AA000410 /* macOS Sources */ = {
 			isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; runOnlyForDeploymentPostprocessing = 0;
-			files = ( AA000210, AA000211, AA000212, AA000213, AA000214, AA000215, AA000216 );
+			files = ( AA000210, AA000211, AA000212, AA000213, AA000214, AA000215, AA000216,
+			          AA000218, AA000219, AA00021A, AA00021B, AA00021C, AA00021D, AA00021E,
+			          AA00021F, AA000221 );
 		};
 		AA000411 /* macOS Resources */ = {
 			isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; runOnlyForDeploymentPostprocessing = 0;

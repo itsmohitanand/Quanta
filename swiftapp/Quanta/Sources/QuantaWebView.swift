@@ -70,15 +70,27 @@ struct QuantaWebView: NSViewRepresentable {
 
 private func makeWebView() -> WKWebView {
     let cfg = WKWebViewConfiguration()
+
+    #if os(iOS) || os(tvOS)
     cfg.allowsInlineMediaPlayback = true
     cfg.mediaTypesRequiringUserActionForPlayback = []
+    #endif
+
     let prefs = WKWebpagePreferences()
     prefs.allowsContentJavaScript = true
     cfg.defaultWebpagePreferences = prefs
 
     let wv = WKWebView(frame: .zero, configuration: cfg)
     wv.allowsBackForwardNavigationGestures = false
+
+    #if os(iOS) || os(tvOS)
     wv.isOpaque = false
-    wv.backgroundColor = .clear
+    wv.backgroundColor = UIColor.clear
+    #elseif os(macOS)
+    // On macOS, WKWebView doesn't expose backgroundColor and isOpaque is read-only.
+    // Use KVC to disable the default white background for a transparent effect if desired.
+    wv.setValue(false, forKey: "drawsBackground")
+    #endif
+
     return wv
 }

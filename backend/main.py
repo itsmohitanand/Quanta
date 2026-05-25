@@ -35,5 +35,5 @@ app.include_router(notes.router,       prefix="/api")
 app.include_router(settings.router,    prefix="/api")
 app.include_router(voice.router)       # /ws/voice — no /api prefix
 
-webapp = Path(__file__).parent.parent / "webapp"
+webapp = Path(__file__).parent.parent / "webapp" / "dist"
 app.mount("/", StaticFiles(directory=str(webapp), html=True), name="webapp")

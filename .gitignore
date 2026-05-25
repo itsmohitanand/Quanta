@@ -14,6 +14,10 @@ quanta.db
 # macOS
 .DS_Store
 
+# Node / Webapp
+webapp/node_modules/
+webapp/dist/
+
 # Xcode
 swiftapp/*.xcodeproj/xcuserdata/
 swiftapp/DerivedData/
